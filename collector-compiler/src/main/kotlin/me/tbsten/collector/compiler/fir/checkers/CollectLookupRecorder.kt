@@ -13,8 +13,9 @@ import org.jetbrains.kotlin.name.CallableId
 
 /**
  * Records incremental-compilation lookups from the calling file to the hints that decide the result of a
- * `collect*()` call (its tag hints, the Collectors' key hints and their item hints), so that a hint added, removed
- * or changed anywhere recompiles the call site. Reports nothing.
+ * `collect*()` call and its warnings (its tag hints, the Collectors' key hints, their item hints and the missed
+ * hints of their annotations), so that a hint added, removed or changed anywhere recompiles the call site. Reports
+ * nothing.
  */
 internal object CollectLookupRecorder : FirFunctionCallChecker(MppCheckerKind.Common) {
     context(context: CheckerContext, reporter: DiagnosticReporter)
@@ -29,7 +30,10 @@ internal object CollectLookupRecorder : FirFunctionCallChecker(MppCheckerKind.Co
         call.tag?.let { lookup(CollectorNames.collectorTagHint(it)) }
         for (collector in call.collectors) {
             lookup(CollectorNames.collectorKeyHint(collector.classId))
-            for (x in session.collectorHints.annotationsOf(collector.classId)) lookup(CollectorNames.itemHint(x))
+            for (x in session.collectorHints.annotationsOf(collector.classId)) {
+                lookup(CollectorNames.itemHint(x))
+                lookup(CollectorNames.missedHint(x))
+            }
         }
     }
 }
