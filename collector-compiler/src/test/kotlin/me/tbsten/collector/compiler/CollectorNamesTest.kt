@@ -36,6 +36,7 @@ class CollectorNamesTest {
     fun hintFileNames() {
         assertEquals("collectorFor_com__example__RouteCollector", CollectorNames.collectorForHintFile(collector))
         assertEquals("collectorKey_com__example__RouteCollector", CollectorNames.collectorKeyHintFile(collector))
-        assertEquals("itemHint_com__example__Home", CollectorNames.itemHintFile("com.example.Home"))
+        assertEquals("itemHint_com__example__Home", CollectorNames.itemHintFile(CollectorNames.holder("com.example.Home")))
+        assertEquals("itemHint_com__example__home_k1", CollectorNames.itemHintFile(CollectorNames.holder("com.example.home", 1)))
     }
 }

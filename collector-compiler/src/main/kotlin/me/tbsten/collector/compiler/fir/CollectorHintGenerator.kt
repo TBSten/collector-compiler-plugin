@@ -55,7 +55,7 @@ class CollectorHintGenerator(session: FirSession) : FirDeclarationGenerationExte
 
     /** The visible Collectors this item can be converted for (spec 04); the others are left to the checker's warning. */
     private fun convertibleCollectors(item: ItemDef): List<CollectorDef> =
-        collectors.collectorsFor(item.annotation).filter { c ->
+        item.annotations.flatMap { collectors.collectorsFor(it) }.distinctBy { it.collector }.filter { c ->
             val t = c.elementType ?: return@filter false
             val problem = conversionProblem(session, item.declaration, t)
             if (problem != null) debugLog { "${item.fqName} is not converted for ${c.collector}: $problem" }

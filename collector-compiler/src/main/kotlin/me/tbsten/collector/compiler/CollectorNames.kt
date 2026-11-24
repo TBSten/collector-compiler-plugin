@@ -50,8 +50,8 @@ internal object CollectorNames {
     /** The file of the `collectorKey_` hints of [collector]. */
     fun collectorKeyHintFile(collector: ClassId): String = collectorKeyHint(collector).callableName.asString()
 
-    /** The file of the `item_` hints of the item [declarationFqName]. */
-    fun itemHintFile(declarationFqName: String): String = ITEM_FILE_PREFIX + HintNameEncoding.encode(declarationFqName)
+    /** The file of the `item_` hints of the item with the holder [holder]; it follows the holder's name. */
+    fun itemHintFile(holder: ClassId): String = ITEM_FILE_PREFIX + holder.shortClassName.asString().removePrefix(HOLDER_PREFIX)
 
     /**
      * The holder object of an item. [disambiguator] > 0 adds `_k<n>`, used when names in one module differ only in
