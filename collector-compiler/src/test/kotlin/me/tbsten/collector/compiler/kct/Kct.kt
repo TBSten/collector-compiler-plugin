@@ -23,6 +23,8 @@ class Module(
     val files: Map<String, String>,
     val deps: List<Compiled> = emptyList(),
     val plugin: Boolean = true,
+    /** -Xverify-ir=error; turned off only to look past an IR validation bug that is reported separately. */
+    val verifyIr: Boolean = true,
 )
 
 class Compiled(val module: Module, val result: JvmCompilationResult, val messages: String) {
@@ -79,7 +81,10 @@ fun compile(module: Module): Compiled {
         messageOutputStream = out
         verbose = false
         // -Xverify-ir=error: malformed IR from the plugin fails the compilation instead of passing unnoticed (off by default on JVM).
-        kotlincArguments = kotlincArguments + listOf("-Xrender-internal-diagnostic-names", "-Xverify-ir=error")
+        kotlincArguments = kotlincArguments + listOf("-Xrender-internal-diagnostic-names") +
+            (if (module.verifyIr) listOf("-Xverify-ir=error") else emptyList())
+        // the runtime is built for the JVM running the tests; inline functions need the same target
+        jvmTarget = Runtime.version().feature().toString()
     }.compile()
     return Compiled(module, result, out.toString())
 }
