@@ -114,6 +114,25 @@ class ConversionTest {
         }
     }
 
+    /**
+     * A3 with T = Any: an interface is only convertible as its KClass (KClass<I> is an Any), so FIR accepts it, but
+     * the IR side tries to instantiate it and crashes looking for a constructor. Same root cause as the A7 case.
+     */
+    @Test
+    fun a3_interfaceWithTAny() {
+        val compiled = compile("main", files = arrayOf(
+            defs("Any"),
+            "Items.kt" to """
+                package items
+                @defs.E interface Plugin
+            """,
+            boxFile("C.collectAsList().size"),
+        ))
+        knownBug("A3/A7: with T = Any, FIR accepts a class through its KClass but IR converts by constructor (interface: compiler crash)") {
+            assertEquals(1, compiled.box())
+        }
+    }
+
     /** A8: a top-level val is its value; a var is read when the items are retrieved. */
     @Test
     fun a8_topLevelValAndVar() {
