@@ -33,3 +33,7 @@ annotation class OwnLabel
 private class Secret
 
 @defs.Weighted("far", weight = 2, kind = Secret::class) val weightedFar = "far"
+
+// defs.Marker is an expect annotation: a type alias on the JVM
+@defs.Marker
+val markedDownstream = "items1 common"

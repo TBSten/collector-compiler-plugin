@@ -64,3 +64,16 @@ annotation class Weighted(val name: String, val weight: Int = 1, val kind: KClas
 object WeightedCollector : Collector<String>
 
 @Weighted("near") val weightedNear = "near"
+
+// The ways to write an annotation at an item: imports, an import alias, a type alias, a nested class
+annotation class Spelled
+
+object Spellings { annotation class Nested }
+
+typealias SpelledAlias = Spelled
+
+@CollectorFor<Spelled>()
+object SpelledCollector : Collector<String>
+
+@CollectorFor<Spellings.Nested>()
+object NestedSpelledCollector : Collector<String>

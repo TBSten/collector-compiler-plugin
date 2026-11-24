@@ -4,7 +4,11 @@ import defs.PaletteFactoryCollector
 import defs.Labeled
 import defs.LabeledCollector
 import defs.LongNameCollector
+import defs.Marker
+import defs.MarkerCollector
+import defs.NestedSpelledCollector
 import defs.SettingCollector
+import defs.SpelledCollector
 import defs.Tinted
 import defs.TwiceCollector
 import defs.Weighted
@@ -15,6 +19,7 @@ import me.tbsten.collector.collectAsList
 import me.tbsten.collector.collectWithAnnotation
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class EdgeInputTest {
     @Test
@@ -78,5 +83,24 @@ class EdgeInputTest {
             listOf("near near 1 Any", "far far 2 Secret"),
             WeightedCollector.collectWithAnnotation<Weighted, String>().map { (a, value) -> "$value ${a.name} ${a.weight} ${a.kind.simpleName}" },
         )
+    }
+
+    /**
+     * defs.Marker is an expect annotation: source sets that only see the expect declaration and source sets that see
+     * its actual (a type alias on the JVM) all collect for the same Collector.
+     */
+    @Test
+    fun expectAnnotationIsCollectedOnEverySide() {
+        val collected = MarkerCollector.collectAsList()
+        assertTrue(collected.containsAll(listOf("defs common", "defs platform", "items1 common")), collected.toString())
+        assertEquals(collected, MarkerCollector.collectWithAnnotation<Marker, String>().map { it.second })
+    }
+
+    /** However an annotation is written, it is the class the compiler resolves it to that counts. */
+    @Test
+    fun annotationsAreReadAsTheCompilerResolvesThem() {
+        // edge.spelling.Scope.qualifiedInScope, edge.spelling.byStarImport, .byTypeAlias, edge.spelling.renamed.byImportAlias
+        assertEquals(listOf("qualified", "star import", "type alias", "import alias"), SpelledCollector.collectAsList())
+        assertEquals(listOf("outer name", "import of the nested class"), NestedSpelledCollector.collectAsList())
     }
 }
