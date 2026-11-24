@@ -2,6 +2,7 @@ package me.tbsten.collector.compiler.fir
 
 import me.tbsten.collector.compiler.CollectorNames
 import me.tbsten.collector.compiler.CollectorPluginKey
+import me.tbsten.collector.compiler.debugLog
 import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.declarations.FirDeclarationOrigin
@@ -52,11 +53,20 @@ class CollectorHintGenerator(session: FirSession) : FirDeclarationGenerationExte
     private fun FirClassSymbol<*>.isCollectorGenerated(): Boolean =
         (origin as? FirDeclarationOrigin.Plugin)?.key == CollectorPluginKey
 
+    /** The visible Collectors this item can be converted for (spec 04); the others are left to the checker's warning. */
+    private fun convertibleCollectors(item: ItemDef): List<CollectorDef> =
+        item.annotations.flatMap { collectors.collectorsFor(it) }.distinctBy { it.collector }.filter { c ->
+            val t = c.elementType ?: return@filter false
+            val problem = conversionProblem(session, item.declaration, t)
+            if (problem != null) debugLog { "${item.fqName} is not converted for ${c.collector}: $problem" }
+            problem == null
+        }
+
     override fun getCallableNamesForClass(classSymbol: FirClassSymbol<*>, context: MemberGenerationContext): Set<Name> {
         val item = itemOf(classSymbol) ?: return emptySet()
         return buildSet {
             add(SpecialNames.INIT)
-            collectors.collectorsFor(item.annotation).forEach { add(CollectorNames.asFunction(it.collector)) }
+            convertibleCollectors(item).forEach { add(CollectorNames.asFunction(it.collector)) }
         }
     }
 
@@ -68,10 +78,10 @@ class CollectorHintGenerator(session: FirSession) : FirDeclarationGenerationExte
     override fun generateFunctions(callableId: CallableId, context: MemberGenerationContext?): List<FirNamedFunctionSymbol> =
         if (context != null) generateHolderMembers(callableId, context.owner) else generateHints(callableId)
 
-    /** `as_<enc(C)>(): T` on a holder, for each Collector C of the item's annotation. */
+    /** `as_<enc(C)>(): T` on a holder, for each Collector C the item converts for. */
     private fun generateHolderMembers(callableId: CallableId, owner: FirClassSymbol<*>): List<FirNamedFunctionSymbol> {
         val item = itemOf(owner) ?: return emptyList()
-        return collectors.collectorsFor(item.annotation)
+        return convertibleCollectors(item)
             .filter { CollectorNames.asFunction(it.collector) == callableId.callableName }
             .mapNotNull { c ->
                 val type = c.elementType ?: return@mapNotNull null

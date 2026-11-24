@@ -6,6 +6,7 @@ import org.jetbrains.kotlin.diagnostics.error0
 import org.jetbrains.kotlin.diagnostics.error1
 import org.jetbrains.kotlin.diagnostics.rendering.BaseDiagnosticRendererFactory
 import org.jetbrains.kotlin.diagnostics.rendering.CommonRenderers
+import org.jetbrains.kotlin.diagnostics.warning1
 import org.jetbrains.kotlin.psi.KtElement
 
 object CollectorErrors : KtDiagnosticsContainer() {
@@ -18,10 +19,42 @@ object CollectorErrors : KtDiagnosticsContainer() {
     /** `collectSingleOrNull()` found more than one item (arg: description of the count). */
     val COLLECT_SINGLE_OR_NULL_COUNT by error1<KtElement, String>()
 
+    /** `@CollectorFor` on something other than an object. */
+    val COLLECTOR_FOR_NOT_OBJECT by error0<KtElement>()
+
+    /** `@CollectorFor` on an object that does not implement `Collector<T>`. */
+    val COLLECTOR_FOR_NOT_COLLECTOR by error0<KtElement>()
+
+    /** The same annotation X twice on one Collector (arg: X). */
+    val COLLECTOR_FOR_DUPLICATE by warning1<KtElement, String>()
+
+    /** A collected annotation on a declaration that can not be collected (arg: why). */
+    val ITEM_NOT_ALLOWED_HERE by error1<KtElement, String>()
+
+    /** Two collected declarations with the same fully-qualified name (arg: the name). */
+    val ITEM_NAME_CLASH by error1<KtElement, String>()
+
+    /** A collected declaration that no visible Collector can convert (arg: per-Collector reasons). */
+    val ITEM_NOT_CONVERTIBLE by warning1<KtElement, String>()
+
     override fun getRendererFactory(): BaseDiagnosticRendererFactory = Renderers
 
     private object Renderers : BaseDiagnosticRendererFactory() {
         override val MAP by KtDiagnosticFactoryToRendererMap("Collector") { map ->
+            map.put(COLLECTOR_FOR_NOT_OBJECT, "@CollectorFor can only be used on an object.")
+            map.put(COLLECTOR_FOR_NOT_COLLECTOR, "An object annotated with @CollectorFor must implement Collector<T>.")
+            map.put(COLLECTOR_FOR_DUPLICATE, "@CollectorFor<{0}> is repeated on the same object.", CommonRenderers.STRING)
+            map.put(ITEM_NOT_ALLOWED_HERE, "This declaration can not be collected: {0}.", CommonRenderers.STRING)
+            map.put(
+                ITEM_NAME_CLASH,
+                "Collected declarations must have distinct names, but {0} is used more than once (overloads are not supported).",
+                CommonRenderers.STRING,
+            )
+            map.put(
+                ITEM_NOT_CONVERTIBLE,
+                "No Collector visible here can collect this declaration, so it is skipped: {0}.",
+                CommonRenderers.STRING,
+            )
             map.put(
                 RECEIVER_NOT_COLLECTOR_OBJECT,
                 "The receiver of collect functions must be a direct reference to an object annotated with @CollectorFor.",

@@ -65,7 +65,7 @@ internal class CollectCallTransformer(
             val factoryType = context.irBuiltIns.functionN(0).typeWith(elementType)
             b.irCall(symbols.sequenceOfFactories, resultType, typeArguments = listOf(elementType)).apply {
                 arguments[0] = b.irGetObject(symbols.internals)
-                arguments[1] = b.irVararg(factoryType, entries.map { e -> b.irLambda(factoryType) { value(it, e) } })
+                arguments[1] = b.irVararg(factoryType, entries.map { e -> b.irLambda(factoryType) { lambda, _ -> value(lambda, e) } })
             }
         }
         // the count is checked on the FIR side
@@ -84,7 +84,7 @@ internal class CollectCallTransformer(
     private fun lazyOf(b: IrBuilderWithScope, valueType: IrType, lazyType: IrType, body: (IrBuilderWithScope) -> IrExpression): IrExpression {
         val initializerType = context.irBuiltIns.functionN(0).typeWith(valueType)
         return b.irCall(symbols.lazy, lazyType, typeArguments = listOf(valueType)).apply {
-            arguments[0] = b.irLambda(initializerType, body)
+            arguments[0] = b.irLambda(initializerType) { lambda, _ -> body(lambda) }
         }
     }
 }

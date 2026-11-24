@@ -50,11 +50,17 @@ internal object CollectorNames {
     /** The file of the `collectorKey_` hints of [collector]. */
     fun collectorKeyHintFile(collector: ClassId): String = collectorKeyHint(collector).callableName.asString()
 
-    /** The file of the `item_` hints of the item [declarationFqName]. */
-    fun itemHintFile(declarationFqName: String): String = ITEM_FILE_PREFIX + HintNameEncoding.encode(declarationFqName)
+    /** The file of the `item_` hints of the item with the holder [holder]; it follows the holder's name. */
+    fun itemHintFile(holder: ClassId): String = ITEM_FILE_PREFIX + holder.shortClassName.asString().removePrefix(HOLDER_PREFIX)
 
-    fun holder(declarationFqName: String): ClassId =
-        ClassId(HINTS_PACKAGE, Name.identifier(HOLDER_PREFIX + HintNameEncoding.encode(declarationFqName)))
+    /**
+     * The holder object of an item. [disambiguator] > 0 adds `_k<n>`, used when names in one module differ only in
+     * case (`Foo` / `foo`), which clash as class files on case-insensitive file systems.
+     */
+    fun holder(declarationFqName: String, disambiguator: Int = 0): ClassId =
+        ClassId(HINTS_PACKAGE, Name.identifier(HOLDER_PREFIX + HintNameEncoding.encode(declarationFqName) + disambiguatorSuffix(disambiguator)))
+
+    fun disambiguatorSuffix(disambiguator: Int): String = if (disambiguator > 0) "_k$disambiguator" else ""
 
     /** The declaration FQN a holder class stands for. */
     fun decodeHolder(holder: ClassId): String = decodeHolderName(holder.shortClassName.asString())
@@ -66,4 +72,6 @@ internal object CollectorNames {
         Name.identifier(AS_PREFIX + HintNameEncoding.encode(collector.asFqNameString()))
 
     val COLLECTOR_INTERNALS = ClassId(FqName("me.tbsten.collector.internal"), Name.identifier("CollectorInternals"))
+
+    val COMPOSABLE = ClassId(FqName("androidx.compose.runtime"), Name.identifier("Composable"))
 }

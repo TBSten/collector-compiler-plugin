@@ -19,7 +19,7 @@ internal class HintSpec(
  * - `collectorFor_<X>(a: X, c: C)` and `collectorKey_<C>(a: X)` for each own Collector C of X: downstream modules
  *   find the Collectors of an annotation, and the annotations of a Collector (type arguments of annotations are not
  *   kept in class files);
- * - `item_<X>(i: Item_…)` for each own item annotated with X.
+ * - `item_<X>(i: Item_…)` for each own item and each collected annotation X on it.
  */
 internal fun hintSpecs(collectors: List<CollectorDef>, items: OwnItems): Map<CallableId, List<HintSpec>> = buildList {
     for (c in collectors) {
@@ -39,11 +39,13 @@ internal fun hintSpecs(collectors: List<CollectorDef>, items: OwnItems): Map<Cal
         )
     }
     for (item in items.items) {
-        add(
-            HintSpec(
-                CollectorNames.itemHint(item.annotation), CollectorNames.itemHintFile(item.fqName),
-                listOf(CollectorNames.HOLDER_PARAMETER to item.holder),
-            ),
-        )
+        for (x in item.annotations) {
+            add(
+                HintSpec(
+                    CollectorNames.itemHint(x), CollectorNames.itemHintFile(item.holder),
+                    listOf(CollectorNames.HOLDER_PARAMETER to item.holder),
+                ),
+            )
+        }
     }
 }.groupBy { it.callableId }

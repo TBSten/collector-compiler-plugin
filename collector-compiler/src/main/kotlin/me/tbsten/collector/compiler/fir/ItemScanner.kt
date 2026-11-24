@@ -2,6 +2,7 @@ package me.tbsten.collector.compiler.fir
 
 import me.tbsten.collector.compiler.CollectorNames
 import me.tbsten.collector.compiler.debugLog
+import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.declarations.DirectDeclarationsAccess
 import org.jetbrains.kotlin.fir.declarations.FirDeclaration
@@ -20,19 +21,18 @@ import org.jetbrains.kotlin.fir.types.coneTypeOrNull
 import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.FqName
 
-/** A declaration of this module annotated with a collected annotation. */
+/** A declaration of this module annotated with one or more collected annotations. */
 internal data class ItemDef(
     val fqName: String,
-    val annotation: ClassId,
+    val annotations: Set<ClassId>,
     val declaration: FirDeclaration,
-) {
-    val holder: ClassId get() = CollectorNames.holder(fqName)
-}
+    val holder: ClassId = CollectorNames.holder(fqName),
+)
 
 /** The result of [ItemScanner.scan]. */
 internal class OwnItems(val items: List<ItemDef>) {
     /** Holder object -> the item it stands for. */
-    val byHolder: Map<ClassId, ItemDef> = buildMap { items.forEach { putIfAbsent(it.holder, it) } }
+    val byHolder: Map<ClassId, ItemDef> = items.associateBy { it.holder }
 }
 
 /** The name under which [this] can be an item, or null for declarations that are never items. */
@@ -55,11 +55,13 @@ internal fun FirDeclaration.itemName(): String? = when (this) {
 internal class ItemScanner(private val session: FirSession) {
     fun scan(targets: Set<ClassId>): OwnItems {
         val provider = session.firProvider
-        val result = mutableListOf<ItemDef>()
+        val found = mutableListOf<ItemDef>()
         for (pkg in provider.symbolProvider.symbolNamesProvider.getPackageNames().orEmpty()) {
             for (file in provider.getFirFilesByPackage(FqName(pkg))) {
                 val candidates = mutableSetOf<String>()
-                for (decl in file.declarations) collectItems(file, decl, file.packageDirective.packageFqName.asString(), targets, result, candidates)
+                for (decl in file.declarations) {
+                    collectItems(file, decl, file.packageDirective.packageFqName.asString(), containerIsObject = true, targets, found, candidates)
+                }
                 // A Collector for any of these annotations may appear upstream later: make IC recompile this file then.
                 val tracker = session.lookupTracker ?: continue
                 for (fq in candidates) {
@@ -69,24 +71,39 @@ internal class ItemScanner(private val session: FirSession) {
         }
         // Files that feed generated top-level declarations must be recompiled on every IC round,
         // otherwise their holders disappear (the predicate-based provider does this automatically).
-        result.forEach { session.lookupTracker?.recordDirtyDeclaration(it.declaration.symbol) }
-        debugLog { "own items: ${result.map { it.fqName + "@" + it.annotation }}" }
+        found.forEach { session.lookupTracker?.recordDirtyDeclaration(it.declaration.symbol) }
+        // Same FQN twice (overloads) is reported by the checker; keep the first one here.
+        val unique = found.distinctBy { it.fqName }.sortedBy { it.fqName }
+        // Names differing only in case clash as class files on case-insensitive file systems: number them.
+        val result = unique.groupBy { it.holder.shortClassName.asString().lowercase() }.values.flatMap { group ->
+            group.mapIndexed { i, item -> if (i == 0) item else item.copy(holder = CollectorNames.holder(item.fqName, i)) }
+        }
+        debugLog { "own items: ${result.map { it.fqName + "@" + it.annotations + " -> " + it.holder.shortClassName }}" }
         return OwnItems(result)
     }
 
     private fun collectItems(
-        file: FirFile, decl: FirDeclaration, prefix: String, targets: Set<ClassId>,
+        file: FirFile, decl: FirDeclaration, prefix: String, containerIsObject: Boolean, targets: Set<ClassId>,
         out: MutableList<ItemDef>, candidates: MutableSet<String>,
     ) {
         val name = decl.itemName() ?: return
         val fq = if (prefix.isEmpty()) name else "$prefix.$name"
+        val annotations = mutableSetOf<ClassId>()
         for (ann in decl.annotations) {
             candidates += annotationCandidates(ann, file)
             val id = resolveAnnotation(ann, file, targets) ?: continue
-            if (id in targets) out += ItemDef(fq, id, decl)
+            if (id in targets) annotations += id
         }
+        // Members of a class need an instance and inner classes an outer instance: the checker reports those.
+        val placeable = when (decl) {
+            is FirRegularClass -> !decl.isInner
+            else -> containerIsObject
+        }
+        if (annotations.isNotEmpty() && placeable) out += ItemDef(fq, annotations, decl)
         if (decl is FirRegularClass && !decl.isInner) {
-            for (member in decl.declarations) collectItems(file, member, fq, targets, out, candidates)
+            for (member in decl.declarations) {
+                collectItems(file, member, fq, decl.classKind == ClassKind.OBJECT, targets, out, candidates)
+            }
         }
     }
 
