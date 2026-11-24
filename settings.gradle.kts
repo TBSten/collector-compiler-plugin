@@ -14,3 +14,4 @@ dependencyResolutionManagement {
 }
 
 include(":collector-runtime")
+include(":collector-compiler")
