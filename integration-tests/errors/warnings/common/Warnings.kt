@@ -21,3 +21,14 @@ enum class EntryForKClass { @defs.EnumKind ENTRY } // W: ITEM_NOT_CONVERTIBLE
 fun missed() {
     UnseenCollector.collectAsList() // W: COLLECT_MISSED_ITEMS
 }
+
+// :defs and :items1 saw the Collector of @Weighted that :defs declares, but not this one, which came later: their
+// items have holders, without a conversion for it
+@CollectorFor<defs.Weighted>() object LateWeightedCollector : Collector<Any>
+
+@defs.Weighted("here") val weightedHere = "seen by both Collectors"
+
+fun unseen() {
+    LateWeightedCollector.collectAsList() // W: COLLECT_MISSED_ITEMS
+    defs.WeightedCollector.collectAsList() // every module saw this one
+}

@@ -47,6 +47,16 @@ class ItemIdentityTest {
         assertNull(ItemIdentity.fromFields(HintMessage.fields(HintMessage.of(listOf(HintMessage.MISSED to "a.b")))))
     }
 
+    /** A holder lists the Collectors its item's module could see next to the identity, which is still read back. */
+    @Test
+    fun holdersRecordTheVisibleCollectors() {
+        val collectors = listOf("com/example/RouteCollector", "com/example/Outer.Nested")
+        val message = HintMessage.of(member.toFields() + collectors.map { HintMessage.COLLECTOR to it })
+        assertEquals(collectors, HintMessage.values(message, HintMessage.COLLECTOR))
+        assertEquals(member, ItemIdentity.fromFields(HintMessage.fields(message)))
+        assertEquals(emptyList(), HintMessage.values(HintMessage.of(member.toFields()), HintMessage.COLLECTOR))
+    }
+
     @Test
     fun missedMarkersRecordADeclaration() {
         assertEquals("a.b: c", HintMessage.fields(HintMessage.of(listOf(HintMessage.MISSED to "a.b: c")))[HintMessage.MISSED])
