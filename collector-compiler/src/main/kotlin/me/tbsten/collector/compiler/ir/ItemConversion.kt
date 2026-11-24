@@ -102,9 +102,12 @@ internal class ItemConversion(private val context: IrPluginContext, private val 
     private fun callableConstructors(target: IrClass): List<IrConstructor> =
         target.constructors.filter { it.visibility == DescriptorVisibilities.PUBLIC || it.visibility == DescriptorVisibilities.INTERNAL }.toList()
 
-    /** The constructor `Foo()` calls: one without parameters if there is one, as overload resolution prefers it. */
+    /**
+     * The constructor `Foo()` calls: one without parameters if there is one, as overload resolution prefers it. A
+     * parameter that has a default value or is a vararg needs no argument.
+     */
     private fun constructorWithoutArguments(target: IrClass): IrConstructor? {
-        val candidates = callableConstructors(target).filter { c -> c.parameters.all { it.defaultValue != null } }
+        val candidates = callableConstructors(target).filter { c -> c.parameters.all { it.defaultValue != null || it.varargElementType != null } }
         return candidates.firstOrNull { it.parameters.isEmpty() } ?: candidates.firstOrNull()
     }
 

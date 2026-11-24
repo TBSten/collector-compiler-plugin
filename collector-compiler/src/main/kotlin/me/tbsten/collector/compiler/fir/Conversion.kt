@@ -161,7 +161,7 @@ private class FirClassConversionFacts(
             declaration.modality != Modality.ABSTRACT && declaration.modality != Modality.SEALED
 
     override val hasConstructorWithoutArguments: Boolean
-        get() = constructors.any { c -> c.valueParameters.all { it.defaultValue != null } }
+        get() = constructors.any { c -> c.valueParameters.all { it.defaultValue != null || it.isVararg } }
 
     override val constructorFitsT: Boolean
         get() = function != null && constructors.any { c ->
