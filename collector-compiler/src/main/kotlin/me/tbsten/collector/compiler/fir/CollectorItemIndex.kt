@@ -10,11 +10,12 @@ import org.jetbrains.kotlin.name.CallableId
  * The items of this module and the hints it declares: what [CollectorHintGenerator] generates.
  *
  * Both are computed once per session, on first use, and shared by everything that needs them, so the generator
- * itself keeps no state.
+ * itself keeps no state. [moduleName] is the name of the module being compiled, which is part of what an item is
+ * (see [me.tbsten.collector.compiler.ItemIdentity]); a session only knows the name of its own source set.
  */
-class CollectorItemIndex(session: FirSession) : FirExtensionSessionComponent(session) {
+class CollectorItemIndex(session: FirSession, private val moduleName: String) : FirExtensionSessionComponent(session) {
     internal val own: OwnItems by session.firCachesFactory.createLazyValue {
-        ItemScanner(session).scan(session.collectorIndex.targetAnnotations)
+        ItemScanner(session, moduleName).scan(session.collectorIndex.targetAnnotations)
     }
 
     internal val hints: Map<CallableId, List<HintSpec>> by session.firCachesFactory.createLazyValue {

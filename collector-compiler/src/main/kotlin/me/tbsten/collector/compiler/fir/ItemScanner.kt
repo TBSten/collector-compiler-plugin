@@ -31,23 +31,26 @@ internal data class ItemDef(
     val identity: ItemIdentity,
     val annotations: Set<ClassId>,
     val declaration: FirDeclaration,
-    val holder: ClassId = CollectorNames.holder(identity.fqName),
+    val holder: ClassId = CollectorNames.holder(identity),
 )
 
-/** The result of [ItemScanner.scan]. */
+/** The result of [ItemScanner.scan] for the module [module]. */
 internal class OwnItems(
+    private val module: String,
     val items: List<ItemDef>,
     /**
      * spec P11: annotation X -> the first (by FQN) declaration of this module annotated with it although no Collector
-     * for X is visible. That declaration names the marker of `collectorMissed_<X>`.
+     * for X is visible. The marker of `collectorMissed_<X>` names that declaration.
      */
     val missed: Map<ClassId, String>,
 ) {
+    fun missedMarker(annotation: ClassId): ClassId = CollectorNames.missedMarker(annotation, module)
+
     /** Holder object -> the item it stands for. */
     val byHolder: Map<ClassId, ItemDef> = items.associateBy { it.holder }
 
     /** The marker interfaces of the `collectorMissed_` hints -> the declaration each one names. */
-    val missedMarkers: Map<ClassId, String> = missed.values.associateBy { CollectorNames.missedMarker(it) }
+    val missedMarkers: Map<ClassId, String> = missed.mapKeys { (annotation, _) -> missedMarker(annotation) }
 }
 
 /** The name under which [this] can be an item, or null for declarations that are never items. */
@@ -78,7 +81,7 @@ private fun FirDeclaration.itemKind(): ItemIdentity.Kind? = when (this) {
  * way.
  */
 @OptIn(DirectDeclarationsAccess::class)
-internal class ItemScanner(private val session: FirSession) {
+internal class ItemScanner(private val session: FirSession, private val module: String) {
     fun scan(targets: Set<ClassId>): OwnItems {
         val provider = session.firProvider
         val found = mutableListOf<ItemDef>()
@@ -91,22 +94,22 @@ internal class ItemScanner(private val session: FirSession) {
                 }
                 // A Collector for any of these annotations may appear upstream later: make IC recompile this file then.
                 val tracker = session.lookupTracker ?: continue
-                for (fq in candidates) {
-                    tracker.recordNameLookup(CollectorNames.collectorForHintName(fq), CollectorNames.HINTS_PACKAGE.asString(), null, file.source)
+                for (id in candidates.flatMap { classIdCandidates(it) }) {
+                    tracker.recordNameLookup(CollectorNames.collectorForHintName(id), CollectorNames.HINTS_PACKAGE.asString(), null, file.source)
                 }
             }
         }
         // Files that feed generated top-level declarations must be recompiled on every IC round,
         // otherwise their holders disappear (the predicate-based provider does this automatically).
         found.forEach { session.lookupTracker?.recordDirtyDeclaration(it.declaration.symbol) }
-        // Same FQN twice (overloads) is reported by the checker; keep the first one here.
-        val unique = found.distinctBy { it.identity.fqName }.sortedBy { it.identity }
+        // The same declaration twice (overloads) is reported by the checker; keep the first one here.
+        val unique = found.distinctBy { it.identity.path }.sortedBy { it.identity }
         // Names differing only in case clash as class files on case-insensitive file systems: number them.
         val result = unique.groupBy { it.holder.shortClassName.asString().lowercase() }.values.flatMap { group ->
-            group.mapIndexed { i, item -> if (i == 0) item else item.copy(holder = CollectorNames.holder(item.identity.fqName, i)) }
+            group.mapIndexed { i, item -> if (i == 0) item else item.copy(holder = CollectorNames.holder(item.identity, i)) }
         }
         debugLog { "own items: ${result.map { it.identity.fqName + "@" + it.annotations + " -> " + it.holder.shortClassName }}" }
-        return OwnItems(result, missed.mapValues { (_, fqNames) -> fqNames.min() })
+        return OwnItems(module, result, missed.mapValues { (_, fqNames) -> fqNames.min() })
     }
 
     /** [container] is the dotted name of the classes around [decl], empty at the top level. */
@@ -117,7 +120,9 @@ internal class ItemScanner(private val session: FirSession) {
         val kind = decl.itemKind() ?: return
         val name = decl.itemName() ?: return
         val relativeName = if (container.isEmpty()) name else "$container.$name"
-        val identity = ItemIdentity(kind, file.packageDirective.packageFqName.asString(), relativeName)
+        // the file is part of what a top-level function or property is: on the JVM it is their class
+        val fileName = file.name.takeIf { container.isEmpty() && decl !is FirRegularClass }
+        val identity = ItemIdentity(kind, module, file.packageDirective.packageFqName.asString(), fileName, relativeName)
         // An annotation class annotated with X is a meta-annotation (like a Compose multipreview), not an item.
         if (decl is FirRegularClass && decl.classKind == ClassKind.ANNOTATION_CLASS) return
         // Members of a class need an instance and inner classes an outer instance: the checker reports those.

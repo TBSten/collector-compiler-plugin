@@ -44,7 +44,7 @@ internal object CollectedItemChecker : FirBasicDeclarationChecker(MppCheckerKind
         val allAnnotations = expandedAnnotationIds(session, declaration)
         val source = declaration.source ?: return
         // a Collector for one of these annotations was built by another plugin version, so it is not read
-        val hintNames = allAnnotations.mapTo(mutableSetOf()) { CollectorNames.collectorForHintName(it.asFqNameString()) }
+        val hintNames = allAnnotations.mapTo(mutableSetOf()) { CollectorNames.collectorForHintName(it) }
         val stale = index.incompatibleCollectorHints.filter { it.name in hintNames }
         if (stale.isNotEmpty()) {
             reporter.reportOn(source, CollectorErrors.HINT_FORMAT_MISMATCH, stale.joinToString { it.describeHint() })

@@ -59,11 +59,12 @@ internal fun hintSpecs(collectors: List<CollectorDef>, items: OwnItems): Map<Cal
             )
         }
     }
-    for ((x, first) in items.missed) {
+    for (x in items.missed.keys) {
+        val marker = items.missedMarker(x)
         add(
             HintSpec(
-                CollectorNames.missedHint(x), CollectorNames.missedHintFile(first),
-                listOf(CollectorNames.ANNOTATION_PARAMETER to x, CollectorNames.MARKER_PARAMETER to CollectorNames.missedMarker(first)),
+                CollectorNames.missedHint(x), CollectorNames.missedHintFile(marker),
+                listOf(CollectorNames.ANNOTATION_PARAMETER to x, CollectorNames.MARKER_PARAMETER to marker),
             ),
         )
     }
