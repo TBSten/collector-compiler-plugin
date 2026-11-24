@@ -79,6 +79,12 @@ object SpelledCollector : Collector<String>
 @CollectorFor<Spellings.Nested>()
 object NestedSpelledCollector : Collector<String>
 
+// the same name in several files of a package, like the `private fun Preview()` of every screen
+annotation class PerFile
+
+@CollectorFor<PerFile>()
+object PerFileCollector : Collector<() -> String>
+
 // an annotation with a value on expect declarations
 annotation class Platform(val name: String)
 

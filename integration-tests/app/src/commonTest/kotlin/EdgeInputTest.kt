@@ -1,6 +1,7 @@
 import defs.EnumKindCollector
 import defs.PaletteCollector
 import defs.PaletteFactoryCollector
+import defs.PerFileCollector
 import defs.Platform
 import defs.PlatformCollector
 import defs.Labeled
@@ -79,6 +80,13 @@ class EdgeInputTest {
     @Test
     fun packageAndOuterClassWithTheSameName() {
         assertEquals(listOf("package edge.twice", "object edge.twice"), TwiceCollector.collectAsList().map { it.toString() })
+    }
+
+    /** Files of one package may each have a declaration of the same name: one item per file, in the order of the files. */
+    @Test
+    fun sameNameInSeveralFilesOfAPackage() {
+        // edge.perfile.preview of Home.kt, Property.kt and Settings.kt
+        assertEquals(listOf("home", "a property", "settings"), PerFileCollector.collectAsList().map { it() })
     }
 
     /** Its holder is named after a shortened form of the name; the item itself is unaffected. */
