@@ -125,6 +125,10 @@ val byPath: Map<Screen, Page> = ScreenCollector.collectAsMap()   // 同じキー
   - 見えずに集められなかった宣言があると、取り出す側の呼び出しで警告（`COLLECT_MISSED_ITEMS`）が出る。
 - **取り出すモジュールから、アイテムを含むモジュールが見えている必要がある。** `implementation` の推移依存の先にあるアイテムは見えないので、`api` で公開する。
 - ほかのバージョンの Collector でビルドされたモジュールが混ざると、エラー（`HINT_FORMAT_MISMATCH`）で再ビルドを促す。
+- **`@CollectorFor` はその名前のまま書く。** import の別名（`import …CollectorFor as Register`）や typealias 経由だと Collector として登録されないので、エラー（`COLLECTOR_FOR_ALIASED`）にしている。
+- **`@CollectorFor<X>` の X を、同じクラスの中にネストしたアノテーションの単純名で書くことはできない。** `object Routes { annotation class Api; @CollectorFor<Api>() object C … }` は `Unresolved reference` になるので、`@CollectorFor<Routes.Api>()` と書く。
+- アイテムに付けたアノテーションは import、import の別名、typealias、ネストしたクラス名のどの書き方でも、コンパイラが解決するクラスで判定する。`expect annotation class` と `actual typealias` の組も同じ 1 つのアノテーションとして集まる。
+  - 例外として、**外側のクラスの親クラスにネストしたアノテーションを単純名で書いた場合**だけはプラグインが追えず、エラー（`ANNOTATION_MISREAD`）になる。`@Base.FromSuper` のように親クラス名から書けば集まる。
 
 ## コンパイルエラーと警告
 
@@ -135,7 +139,8 @@ val byPath: Map<Screen, Page> = ScreenCollector.collectAsMap()   // 同じキー
 | `COLLECT_TAG_NOT_CONSTANT` / `COLLECT_TAG_TYPE_MISMATCH` | タグが定数でない / タグの Collector の T が合わない |
 | `COLLECT_ANNOTATION_TYPE_MISMATCH` / `COLLECT_AS_MAP_DUPLICATE_KEY` | アノテーションの型が合わない / Map のキーが重複 |
 | `COLLECT_CALLABLE_REFERENCE` | `XCollector::collectAsList` のような参照 |
-| `COLLECTOR_FOR_NOT_OBJECT` / `COLLECTOR_FOR_NOT_COLLECTOR` / `COLLECTOR_FOR_TAG_NOT_LITERAL` | `@CollectorFor` の付け方の誤り |
+| `COLLECTOR_FOR_NOT_OBJECT` / `COLLECTOR_FOR_NOT_COLLECTOR` / `COLLECTOR_FOR_TAG_NOT_LITERAL` / `COLLECTOR_FOR_ALIASED` | `@CollectorFor` の付け方の誤り（object でない、`Collector<T>` を実装していない、タグがリテラルでない、別名や typealias 経由で書いた） |
+| `ANNOTATION_MISREAD` | アノテーションをプラグインがコンパイラと違うクラスに読んだ（上の制約を参照）。完全修飾名で書くか、明示的に import する |
 | `ITEM_NOT_ALLOWED_HERE` / `ITEM_NAME_CLASH` | 付けられない場所 / 同じ FQN の宣言が 2 つ（オーバーロード、別ファイルの同名宣言） |
 | `HINT_FORMAT_MISMATCH` | 別バージョンの Collector でビルドされたモジュール |
 | `ITEM_NOT_CONVERTIBLE`（警告） | どの Collector の T にも変換できない |
