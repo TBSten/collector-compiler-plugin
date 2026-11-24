@@ -48,6 +48,10 @@ class CollectorHints(session: FirSession) : FirExtensionSessionComponent(session
      */
     internal fun annotationsOf(collector: ClassId): List<ClassId> = annotationsByCollector.getValue(collector)
 
+    /** The holders of the items annotated with [annotation], read from the `item_` hints. */
+    internal fun holdersOf(annotation: ClassId): List<ClassId> =
+        hints(CollectorNames.itemHint(annotation)).mapNotNull { it.parameterClassId(0) }.distinct()
+
     /** The Collectors declared with [tag], read from the `collectorTag_` hints. */
     internal fun collectorsWithTag(tag: String): List<FirRegularClassSymbol> =
         hints(CollectorNames.collectorTagHint(tag))
@@ -84,7 +88,7 @@ class CollectorHints(session: FirSession) : FirExtensionSessionComponent(session
         for (collector in collectors) {
             val asName = CollectorNames.asFunction(collector)
             val xs = annotationsOf(collector)
-            val holders = xs.flatMap { x -> hints(CollectorNames.itemHint(x)).mapNotNull { it.parameterClassId(0) } }.distinct()
+            val holders = xs.flatMap { holdersOf(it) }.distinct()
             for (holderId in holders) {
                 if (holderId in result) continue
                 val holder = session.symbolProvider.getClassLikeSymbolByClassId(holderId) as? FirRegularClassSymbol ?: continue
