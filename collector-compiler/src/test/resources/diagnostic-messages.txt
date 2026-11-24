@@ -9,7 +9,7 @@ COLLECT_SINGLE_COUNT: collectSingle() needs exactly one item, but 2 items were f
 COLLECT_SINGLE_OR_NULL_COUNT: collectSingleOrNull() allows at most one item, but 2 items were found (P1, P2). Use collectAsList() instead.
 COLLECT_TAG_NOT_CONSTANT: The tag must be a compile-time constant (a string literal or a const val).
 COLLECT_TAG_TYPE_MISMATCH: Every Collector with this tag must collect a subtype of the requested type, but these do not: Tagged (Collector<Plugin>).
-ITEM_NAME_CLASH: Collected declarations must have distinct names, but f is used more than once (overloads, and declarations of the same name in other files of the package, are not supported).
+ITEM_NAME_CLASH: Collected declarations of a file or of an object must have distinct names, but f is used more than once (overloads are not supported).
 ITEM_NOT_ALLOWED_HERE: This declaration can not be collected: members of Holder need an instance; move it into an object or to the top level.
 ITEM_NOT_CONVERTIBLE: No Collector visible here can collect this declaration, so it is skipped: Zs: object NotAPlugin is neither a subtype of T, its KClass nor () -> it.
 RECEIVER_NOT_COLLECTOR_OBJECT: The receiver of collect functions must be a direct reference to an object annotated with @CollectorFor.

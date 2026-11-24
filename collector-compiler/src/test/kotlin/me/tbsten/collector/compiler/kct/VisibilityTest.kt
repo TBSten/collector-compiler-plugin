@@ -53,17 +53,15 @@ class VisibilityTest {
         assertEquals(listOf("IObj", "iVal"), box(boxFile("Any_.collectAsList().map { it.toString() }"), deps = listOf(items)))
     }
 
-    /** F4: same-named private functions in two files of one package; spec: both collected, impl: ITEM_NAME_CLASH (D7). */
+    /** F4: same-named private functions in two files of one package are separate items, ordered by file name. */
     @Test
     fun f4_samePrivateNameInTwoFiles() {
         val d = defs()
-        undecided("D7 (same-named private declarations in two files)") {
-            val items = compile("items", listOf(d), files = arrayOf(
-                "A.kt" to "package items\n@defs.E private fun preview() = \"a\"",
-                "B.kt" to "package items\n@defs.E private fun preview() = \"b\"",
-            )).requireOk()
-            assertEquals(listOf("a", "b"), box(boxFile("Fns.collectAsList().map { it() }.sorted()"), deps = listOf(items)))
-        }
+        val items = compile("items", listOf(d), files = arrayOf(
+            "A.kt" to "package items\n@defs.E private fun preview() = \"a\"",
+            "B.kt" to "package items\n@defs.E private fun preview() = \"b\"",
+        )).requireOk()
+        assertEquals(listOf("a", "b"), box(boxFile("Fns.collectAsList().map { it() }"), deps = listOf(items)))
     }
 
     /** F5: an object nested in a private class is collected, or rejected with a clear error. */
