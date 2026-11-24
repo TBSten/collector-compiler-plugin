@@ -91,7 +91,7 @@ object CollectorErrors : KtDiagnosticsContainer() {
                     "Make the Collector visible there, e.g. declare it next to the annotation.",
                 CommonRenderers.STRING,
             )
-            map.put(COLLECT_TAG_NOT_CONSTANT, "The tag must be a compile-time constant (a string literal or a const val).")
+            map.put(COLLECT_TAG_NOT_CONSTANT, "The tag must be a constant string: a string literal, a const val, or those joined with + or in a string template.")
             map.put(
                 COLLECT_TAG_TYPE_MISMATCH,
                 "Every Collector with this tag must collect a subtype of the requested type, but these do not: {0}.",

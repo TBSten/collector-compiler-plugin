@@ -17,6 +17,7 @@ import org.jetbrains.kotlin.ir.expressions.IrCall
 import org.jetbrains.kotlin.ir.expressions.IrConst
 import org.jetbrains.kotlin.ir.expressions.IrExpression
 import org.jetbrains.kotlin.ir.expressions.IrGetField
+import org.jetbrains.kotlin.ir.expressions.IrStringConcatenation
 import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
 import org.jetbrains.kotlin.ir.types.IrSimpleType
 import org.jetbrains.kotlin.ir.types.IrType
@@ -64,15 +65,27 @@ internal class CollectCallTransformer(
         return lazyOf(builder, valueType, expression.type) { build(it, function.kind, typeArguments, valueType, entries) }
     }
 
-    /** A `const val` or literal string argument. */
-    private fun constantString(expression: IrExpression?): String? = when (expression) {
-        is IrConst -> expression.value as? String
-        is IrCall -> {
-            val property = expression.symbol.owner.correspondingPropertySymbol?.owner
-            if (property?.isConst == true) constantString(property.backingField?.initializer?.expression) else null
+    /** A constant string argument: a literal, a `const val`, or those joined with `+` or in a string template. */
+    private fun constantString(expression: IrExpression?): String? {
+        return when (expression) {
+            is IrConst -> expression.value as? String
+            is IrStringConcatenation -> expression.arguments.map { constantString(it) ?: return null }.joinToString("")
+            is IrCall -> {
+                val callee = expression.symbol.owner
+                val property = callee.correspondingPropertySymbol?.owner
+                when {
+                    property?.isConst == true -> constantString(property.backingField?.initializer?.expression)
+                    callee.name.asString() == "plus" && callee.parent == context.irBuiltIns.stringClass.owner && expression.arguments.size == 2 -> {
+                        val left = constantString(expression.arguments[0]) ?: return null
+                        val right = constantString(expression.arguments[1]) ?: return null
+                        left + right
+                    }
+                    else -> null
+                }
+            }
+            is IrGetField -> constantString(expression.symbol.owner.initializer?.expression)
+            else -> null
         }
-        is IrGetField -> constantString(expression.symbol.owner.initializer?.expression)
-        else -> null
     }
 
     /** `Item_x.as_C()` */

@@ -14,6 +14,7 @@ import org.jetbrains.kotlin.fir.expressions.FirLiteralExpression
 import org.jetbrains.kotlin.fir.expressions.FirPropertyAccessExpression
 import org.jetbrains.kotlin.fir.expressions.FirResolvedQualifier
 import org.jetbrains.kotlin.fir.expressions.FirSafeCallExpression
+import org.jetbrains.kotlin.fir.expressions.FirStringConcatenationCall
 import org.jetbrains.kotlin.fir.expressions.FirThisReceiverExpression
 import org.jetbrains.kotlin.fir.expressions.unwrapSmartcastExpression
 import org.jetbrains.kotlin.fir.references.toResolvedNamedFunctionSymbol
@@ -21,6 +22,9 @@ import org.jetbrains.kotlin.fir.references.toResolvedPropertySymbol
 import org.jetbrains.kotlin.fir.resolve.toRegularClassSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
 import org.jetbrains.kotlin.fir.types.resolvedType
+import org.jetbrains.kotlin.name.CallableId
+import org.jetbrains.kotlin.name.Name
+import org.jetbrains.kotlin.name.StandardClassIds
 
 /** A call of a `collect*()` placeholder, resolved to the Collectors it reads. */
 internal class CollectCall(
@@ -69,12 +73,26 @@ private fun FirExpression.unwrapSafeCallSubject(): FirExpression {
     return (safeCall as? FirSafeCallExpression)?.receiver ?: this
 }
 
-/** A string literal or a reference to a `const val` holding one. */
-internal fun constantString(expression: FirExpression?): String? = when (val e = expression?.unwrapSmartcastExpression()) {
-    is FirLiteralExpression -> e.value as? String
-    is FirPropertyAccessExpression -> {
-        val property = e.calleeReference.toResolvedPropertySymbol()
-        if (property?.isConst == true) constantString(property.resolvedInitializer) else null
+/**
+ * A constant string: a literal, a `const val`, or those joined with `+` or in a string template. Not everything the
+ * compiler can evaluate: the IR rewrite reads the same forms from the call (`CollectCallTransformer`).
+ */
+internal fun constantString(expression: FirExpression?): String? {
+    return when (val e = expression?.unwrapSmartcastExpression()) {
+        is FirLiteralExpression -> e.value as? String
+        is FirPropertyAccessExpression -> {
+            val property = e.calleeReference.toResolvedPropertySymbol()
+            if (property?.isConst == true) constantString(property.resolvedInitializer) else null
+        }
+        is FirStringConcatenationCall -> e.argumentList.arguments.map { constantString(it) ?: return null }.joinToString("")
+        is FirFunctionCall -> {
+            if (e.calleeReference.toResolvedNamedFunctionSymbol()?.callableId != STRING_PLUS) return null
+            val left = constantString(e.dispatchReceiver) ?: return null
+            val right = constantString(e.argumentList.arguments.singleOrNull()) ?: return null
+            left + right
+        }
+        else -> null
     }
-    else -> null
 }
+
+private val STRING_PLUS = CallableId(StandardClassIds.String, Name.identifier("plus"))
