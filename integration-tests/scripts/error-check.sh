@@ -17,7 +17,7 @@ check() {
     fi
     # "<file>:<line> <e|w> <NAME>"
     local expected actual
-    expected=$(cd "$dir" && grep -nHE "// [EW]: [A-Z_]+$" *.kt \
+    expected=$(cd "$dir" && grep -rnHE "// [EW]: [A-Z_]+$" --include='*.kt' . | sed -E 's#^[^:]*/##' \
         | sed -E 's/^([^:]+):([0-9]+):.*\/\/ ([EW]): ([A-Z_]+)$/\1:\2 \3 \4/' | sed 's/ E / e /; s/ W / w /' | sort -u)
     actual=$(grep -E "^[ew]: .*/$dir/[^:]+:[0-9]+:[0-9]+ \[[A-Z_]+\]" "$log" \
         | sed -E 's/^([ew]): .*\/([^/:]+):([0-9]+):[0-9]+ \[([A-Z_]+)\].*/\2:\3 \1 \4/' | sort -u)

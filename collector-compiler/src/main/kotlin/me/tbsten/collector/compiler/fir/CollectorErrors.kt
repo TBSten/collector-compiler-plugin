@@ -82,7 +82,7 @@ object CollectorErrors : KtDiagnosticsContainer() {
             map.put(ITEM_NOT_ALLOWED_HERE, "This declaration can not be collected: {0}.", CommonRenderers.STRING)
             map.put(
                 ITEM_NAME_CLASH,
-                "Collected declarations must have distinct names, but {0} is used more than once (overloads are not supported).",
+                "Collected declarations must have distinct names, but {0} is used more than once (overloads, and declarations of the same name in other files of the package, are not supported).",
                 CommonRenderers.STRING,
             )
             map.put(

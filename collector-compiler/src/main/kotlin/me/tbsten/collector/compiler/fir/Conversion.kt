@@ -12,6 +12,7 @@ import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.declarations.DirectDeclarationsAccess
 import org.jetbrains.kotlin.fir.declarations.FirConstructor
 import org.jetbrains.kotlin.fir.declarations.FirDeclaration
+import org.jetbrains.kotlin.fir.declarations.FirEnumEntry
 import org.jetbrains.kotlin.fir.declarations.FirNamedFunction
 import org.jetbrains.kotlin.fir.declarations.FirProperty
 import org.jetbrains.kotlin.fir.declarations.FirRegularClass
@@ -60,6 +61,15 @@ internal fun conversionProblem(session: FirSession, declaration: FirDeclaration,
     val signature = functionSignature(session, t)
     return when (declaration) {
         is FirRegularClass -> classConversionProblem(session, declaration, t, signature)
+        // an entry is like an object, except that it has no class of its own to reference (spec 06+)
+        is FirEnumEntry -> {
+            val type = declaration.returnTypeRef.coneTypeOrNull ?: return "the type of ${declaration.name} is not resolved"
+            if (type.isSubtypeOf(t)) return null
+            if (signature != null && signature.parameters.isEmpty() && !signature.composable && !signature.suspend &&
+                (signature.returnType.isUnit || type.isSubtypeOf(signature.returnType))
+            ) return null
+            "enum entry ${declaration.name} is neither a subtype of T nor () -> it (enum entries have no KClass of their own)"
+        }
         is FirProperty -> {
             if (declaration.typeParameters.isNotEmpty()) return "generic properties can not be collected"
             if (declaration.receiverParameter != null) return "extension properties can not be collected"

@@ -1,6 +1,7 @@
 package me.tbsten.collector.compiler.fir
 
 import org.jetbrains.kotlin.KtNodeTypes
+import org.jetbrains.kotlin.descriptors.annotations.AnnotationUseSiteTarget
 import org.jetbrains.kotlin.fir.expressions.FirAnnotation
 import org.jetbrains.kotlin.fir.expressions.FirAnnotationCall
 import org.jetbrains.kotlin.fir.expressions.FirExpression
@@ -12,6 +13,13 @@ import org.jetbrains.kotlin.fir.types.coneTypeOrNull
 import org.jetbrains.kotlin.fir.types.type
 import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.Name
+
+/**
+ * Whether [this] annotates the declaration itself. `@get:X`, `@field:X` and other use-site targets annotate something
+ * else and are not collected; `@X` and `@property:X` are (spec 06+).
+ */
+internal fun FirAnnotation.annotatesDeclaration(): Boolean =
+    useSiteTarget == null || useSiteTarget == AnnotationUseSiteTarget.PROPERTY
 
 /** X of a `@CollectorFor<X>` annotation, whether or not its type arguments are resolved yet. */
 internal fun FirAnnotation.collectorForTarget(): ClassId? =

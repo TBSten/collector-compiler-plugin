@@ -1,6 +1,7 @@
 package me.tbsten.collector.compiler.fir.checkers
 
 import me.tbsten.collector.compiler.fir.CollectorErrors
+import me.tbsten.collector.compiler.fir.annotatesDeclaration
 import me.tbsten.collector.compiler.fir.collectorIndex
 import me.tbsten.collector.compiler.fir.conversionProblem
 import me.tbsten.collector.compiler.fir.itemName
@@ -12,6 +13,8 @@ import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
 import org.jetbrains.kotlin.fir.analysis.checkers.declaration.FirBasicDeclarationChecker
 import org.jetbrains.kotlin.fir.declarations.DirectDeclarationsAccess
 import org.jetbrains.kotlin.fir.declarations.FirDeclaration
+import org.jetbrains.kotlin.fir.declarations.FirEnumEntry
+import org.jetbrains.kotlin.fir.declarations.FirMemberDeclaration
 import org.jetbrains.kotlin.fir.declarations.FirNamedFunction
 import org.jetbrains.kotlin.fir.declarations.FirProperty
 import org.jetbrains.kotlin.fir.declarations.FirRegularClass
@@ -20,6 +23,7 @@ import org.jetbrains.kotlin.fir.declarations.FirValueParameter
 import org.jetbrains.kotlin.fir.declarations.toAnnotationClassId
 import org.jetbrains.kotlin.fir.declarations.utils.isInner
 import org.jetbrains.kotlin.fir.declarations.utils.isLocal
+import org.jetbrains.kotlin.fir.resolve.providers.firProvider
 import org.jetbrains.kotlin.fir.symbols.SymbolInternals
 import org.jetbrains.kotlin.fir.symbols.impl.FirFileSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
@@ -34,7 +38,8 @@ internal object CollectedItemChecker : FirBasicDeclarationChecker(MppCheckerKind
     override fun check(declaration: FirDeclaration) {
         val session = context.session
         val index = session.collectorIndex
-        val annotations = declaration.annotations.mapNotNullTo(mutableSetOf()) { it.toAnnotationClassId(session) }
+        val annotations = declaration.annotations.filter { it.annotatesDeclaration() }
+            .mapNotNullTo(mutableSetOf()) { it.toAnnotationClassId(session) }
             .filterTo(mutableSetOf()) { it in index.targetAnnotations }
         if (annotations.isEmpty()) return
         val source = declaration.source ?: return
@@ -64,6 +69,7 @@ internal object CollectedItemChecker : FirBasicDeclarationChecker(MppCheckerKind
         when (declaration) {
             is FirValueParameter -> return "parameters can not be collected"
             is FirTypeAlias -> return "type aliases can not be collected"
+            is FirEnumEntry -> return null
             is FirRegularClass, is FirNamedFunction, is FirProperty -> Unit
             else -> return "only classes, objects, properties and functions can be collected"
         }
@@ -81,19 +87,27 @@ internal object CollectedItemChecker : FirBasicDeclarationChecker(MppCheckerKind
         return null
     }
 
-    /** The name of [declaration] when another collected declaration in the same container has it too. */
+    /**
+     * The name of [declaration] when another collected declaration has the same FQN: an overload, or a declaration
+     * with the same name in another file of the package (private ones included, since their holders would clash). An
+     * expect declaration and its actual are one item (spec 06+).
+     */
     @OptIn(DirectDeclarationsAccess::class, SymbolInternals::class)
     context(context: CheckerContext)
     private fun nameClash(declaration: FirDeclaration, targets: Set<ClassId>): String? {
         val name = declaration.itemName() ?: return null
         val siblings = when (val owner = context.containingDeclarations.lastOrNull()) {
             is FirRegularClassSymbol -> owner.fir.declarations
-            is FirFileSymbol -> owner.fir.declarations
+            is FirFileSymbol -> context.session.firProvider.getFirFilesByPackage(owner.fir.packageDirective.packageFqName).flatMap { it.declarations }
             else -> return null
-        }
-        val clashes = siblings.count { other ->
-            other.itemName() == name && other.annotations.any { it.toAnnotationClassId(context.session) in targets }
-        }
+        }.filter { it.itemName() == name }
+        fun FirDeclaration.collected() = annotations.any { it.annotatesDeclaration() && it.toAnnotationClassId(context.session) in targets }
+        val expectCollected = siblings.any { it.isExpect && it.collected() }
+        val clashes = siblings.count { !it.isExpect && (it.collected() || (expectCollected && it.isActual)) } +
+            if (expectCollected && siblings.none { it.isActual }) 1 else 0
         return if (clashes > 1) name else null
     }
+
+    private val FirDeclaration.isExpect get() = (this as? FirMemberDeclaration)?.status?.isExpect == true
+    private val FirDeclaration.isActual get() = (this as? FirMemberDeclaration)?.status?.isActual == true
 }

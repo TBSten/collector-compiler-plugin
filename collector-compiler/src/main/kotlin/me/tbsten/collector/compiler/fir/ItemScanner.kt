@@ -6,6 +6,7 @@ import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.declarations.DirectDeclarationsAccess
 import org.jetbrains.kotlin.fir.declarations.FirDeclaration
+import org.jetbrains.kotlin.fir.declarations.FirEnumEntry
 import org.jetbrains.kotlin.fir.declarations.FirFile
 import org.jetbrains.kotlin.fir.declarations.FirNamedFunction
 import org.jetbrains.kotlin.fir.declarations.FirProperty
@@ -40,6 +41,7 @@ internal fun FirDeclaration.itemName(): String? = when (this) {
     is FirRegularClass -> name.asString()
     is FirNamedFunction -> name.asString()
     is FirProperty -> name.asString()
+    is FirEnumEntry -> name.asString()
     else -> null
 }
 
@@ -90,6 +92,7 @@ internal class ItemScanner(private val session: FirSession) {
         val fq = if (prefix.isEmpty()) name else "$prefix.$name"
         val annotations = mutableSetOf<ClassId>()
         for (ann in decl.annotations) {
+            if (!ann.annotatesDeclaration()) continue
             candidates += annotationCandidates(ann, file)
             val id = resolveAnnotation(ann, file, targets) ?: continue
             if (id in targets) annotations += id
@@ -97,6 +100,7 @@ internal class ItemScanner(private val session: FirSession) {
         // Members of a class need an instance and inner classes an outer instance: the checker reports those.
         val placeable = when (decl) {
             is FirRegularClass -> !decl.isInner
+            is FirEnumEntry -> true
             else -> containerIsObject
         }
         if (annotations.isNotEmpty() && placeable) out += ItemDef(fq, annotations, decl)
