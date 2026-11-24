@@ -7,11 +7,7 @@ import org.jetbrains.kotlin.backend.common.lower.DeclarationIrBuilder
 import org.jetbrains.kotlin.ir.builders.irBlockBody
 import org.jetbrains.kotlin.ir.builders.irDelegatingConstructorCall
 import org.jetbrains.kotlin.ir.declarations.IrClass
-import org.jetbrains.kotlin.ir.declarations.IrDeclaration
-import org.jetbrains.kotlin.ir.declarations.IrDeclarationOrigin
-import org.jetbrains.kotlin.ir.declarations.IrEnumEntry
 import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
-import org.jetbrains.kotlin.ir.declarations.IrProperty
 import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
 import org.jetbrains.kotlin.ir.expressions.impl.IrInstanceInitializerCallImpl
 import org.jetbrains.kotlin.ir.util.constructors
@@ -29,11 +25,7 @@ internal class HintBodyGenerator(
 ) {
     private val conversion = ItemConversion(context)
     private val annotations = ItemAnnotations(context, symbols)
-
-    /** FQN (as computed on the FIR side) → declaration, for every declaration of this module. */
-    private val items: Map<String, IrDeclaration> by lazy {
-        collectItemDeclarations().also { debugLog { "IR items in module ${module.name}: ${it.keys}" } }
-    }
+    private val declarations = ItemDeclarations(module)
 
     fun generate() {
         for (file in module.files) {
@@ -60,34 +52,14 @@ internal class HintBodyGenerator(
                 +IrInstanceInitializerCallImpl(startOffset, endOffset, holder.symbol, context.irBuiltIns.unitType)
             }
         }
-        val fqName = holder.itemIdentity()?.fqName ?: error("Collector: the holder ${holder.name} does not record its item")
-        val target = items[fqName]
-        debugLog { "fill holder ${holder.name} -> $fqName -> ${target?.let { it::class.simpleName }}" }
-        holder.functions.filter { it.isCollectorGenerated() && it.body == null }.forEach { fn ->
-            target ?: error("Collector: declaration $fqName not found")
-            if (fn.name.asString().startsWith(CollectorNames.ANNOTATIONS_PREFIX)) annotations.fill(fn, target) else conversion.fill(fn, target)
-        }
-    }
-
-    private fun collectItemDeclarations(): Map<String, IrDeclaration> {
-        val result = mutableMapOf<String, IrDeclaration>()
-        fun visit(decl: IrDeclaration, prefix: String) {
-            val name = when (decl) {
-                is IrClass -> decl.name.asString()
-                is IrSimpleFunction -> decl.name.asString()
-                is IrProperty -> decl.name.asString()
-                is IrEnumEntry -> decl.name.asString()
-                else -> return
-            }
-            if (decl.origin is IrDeclarationOrigin.GeneratedByPlugin) return
-            val fq = if (prefix.isEmpty()) name else "$prefix.$name"
-            result.putIfAbsent(fq, decl)
-            if (decl is IrClass && !decl.isInner) decl.declarations.forEach { visit(it, fq) }
-        }
-        for (file in module.files) {
-            val pkg = file.packageFqName.asString()
-            file.declarations.forEach { visit(it, pkg) }
-        }
-        return result
+        val pending = holder.functions.filter { it.isCollectorGenerated() && it.body == null }.toList()
+        if (pending.isEmpty()) return
+        val identity = holder.itemIdentity() ?: error("Collector: the holder ${holder.name} does not record its item")
+        val (annotationFunctions, conversionFunctions) = pending.partition { it.name.asString().startsWith(CollectorNames.ANNOTATIONS_PREFIX) }
+        val target = declarations.find(identity, annotationFunctions.map { annotations.annotationClass(it) })
+            ?: error("Collector: declaration ${identity.fqName} not found")
+        debugLog { "fill holder ${holder.name} -> ${identity.fqName} -> ${target::class.simpleName}" }
+        annotationFunctions.forEach { annotations.fill(it, target) }
+        conversionFunctions.forEach { conversion.fill(it, target) }
     }
 }

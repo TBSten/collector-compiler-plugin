@@ -31,8 +31,7 @@ internal class ItemAnnotations(private val context: IrPluginContext, private val
      */
     fun fill(holderFn: IrSimpleFunction, target: IrDeclaration) {
         val elementType = (holderFn.returnType as IrSimpleType).arguments.single().typeOrFail
-        val x = elementType.classOrNull ?: error("Collector: ${holderFn.name} does not return a list of annotations")
-        val annotations = annotationsOfType(target.annotations, x, emptySet())
+        val annotations = target.annotationsOfType(annotationClass(holderFn))
         holderFn.body = DeclarationIrBuilder(context, holderFn.symbol).irBlockBody {
             +irReturn(
                 irCall(symbols.listOf, holderFn.returnType, typeArguments = listOf(elementType)).apply {
@@ -42,15 +41,10 @@ internal class ItemAnnotations(private val context: IrPluginContext, private val
         }
     }
 
-    /** The [x] annotations among [annotations], with meta-annotations (annotation classes carrying X) expanded in place. */
-    private fun annotationsOfType(annotations: List<IrConstructorCall>, x: IrClassSymbol, path: Set<String>): List<IrConstructorCall> =
-        annotations.flatMap { annotation ->
-            if (annotation.type.classOrNull == x) return@flatMap listOf(annotation)
-            val fq = annotation.type.classFqName?.asString() ?: return@flatMap emptyList()
-            if (fq in path || fq.startsWith("kotlin")) return@flatMap emptyList()
-            val meta = annotation.type.classOrNull?.owner?.takeIf { it.kind == ClassKind.ANNOTATION_CLASS } ?: return@flatMap emptyList()
-            annotationsOfType(meta.annotations, x, path + fq)
-        }
+    /** X of the holder member [holderFn], declared as `annotations_<X>(): List<X>`. */
+    fun annotationClass(holderFn: IrSimpleFunction): IrClassSymbol =
+        (holderFn.returnType as IrSimpleType).arguments.single().typeOrFail.classOrNull
+            ?: error("Collector: ${holderFn.name} does not return a list of annotations")
 
     /**
      * The copied annotation keeps offsets of the item's file, which mean nothing in the holder's file (the JVM
@@ -68,3 +62,15 @@ internal class ItemAnnotations(private val context: IrPluginContext, private val
         })
     }
 }
+
+/** The [x] annotations on [this], in source order, with meta-annotations (annotation classes carrying X) expanded in place. */
+internal fun IrDeclaration.annotationsOfType(x: IrClassSymbol): List<IrConstructorCall> = annotationsOfType(annotations, x, emptySet())
+
+private fun annotationsOfType(annotations: List<IrConstructorCall>, x: IrClassSymbol, path: Set<String>): List<IrConstructorCall> =
+    annotations.flatMap { annotation ->
+        if (annotation.type.classOrNull == x) return@flatMap listOf(annotation)
+        val fq = annotation.type.classFqName?.asString() ?: return@flatMap emptyList()
+        if (fq in path || fq.startsWith("kotlin")) return@flatMap emptyList()
+        val meta = annotation.type.classOrNull?.owner?.takeIf { it.kind == ClassKind.ANNOTATION_CLASS } ?: return@flatMap emptyList()
+        annotationsOfType(meta.annotations, x, path + fq)
+    }
