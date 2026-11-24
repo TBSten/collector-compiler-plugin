@@ -27,7 +27,9 @@ internal class HintSpec(
  * - `collectorMissed_<X>(a: X, m: Missed_…)` for each annotation X this module uses without seeing a Collector for it.
  */
 internal fun hintSpecs(collectors: List<CollectorDef>, items: OwnItems): Map<CallableId, List<HintSpec>> = buildList {
-    for (c in collectors) {
+    // @CollectorFor<X> repeated with two tags is two definitions, and one pair of hints
+    val pairs = collectors.distinctBy { it.annotation to it.collector }
+    for (c in pairs) {
         add(
             HintSpec(
                 CollectorNames.collectorForHint(c.annotation), CollectorNames.collectorForHintFile(c.collector),
@@ -36,7 +38,7 @@ internal fun hintSpecs(collectors: List<CollectorDef>, items: OwnItems): Map<Cal
             ),
         )
     }
-    for (c in collectors) {
+    for (c in pairs) {
         add(
             HintSpec(
                 CollectorNames.collectorKeyHint(c.collector), CollectorNames.collectorKeyHintFile(c.collector),
