@@ -15,6 +15,7 @@ import org.jetbrains.kotlin.fir.declarations.FirProperty
 import org.jetbrains.kotlin.fir.declarations.FirRegularClass
 import org.jetbrains.kotlin.fir.declarations.utils.isInner
 import org.jetbrains.kotlin.fir.lookupTracker
+import org.jetbrains.kotlin.fir.recordClassLikeLookup
 import org.jetbrains.kotlin.fir.recordNameLookup
 import org.jetbrains.kotlin.fir.resolve.providers.firProvider
 import org.jetbrains.kotlin.fir.symbols.FirBasedSymbol
@@ -101,10 +102,14 @@ internal class ItemScanner(private val session: FirSession, private val module: 
                 for (decl in file.declarations) {
                     collectItems(file, decl, containers = emptyList(), found, scanned, used, missed)
                 }
-                // A Collector for any of these annotations may appear upstream later: make IC recompile this file then.
                 val tracker = session.lookupTracker ?: continue
+                // A Collector for any of these annotations may appear upstream later: make IC recompile this file then.
                 for (id in used) {
                     tracker.recordNameLookup(CollectorNames.collectorForHintName(id), CollectorNames.HINTS_PACKAGE.asString(), null, file.source)
+                }
+                // The holders of this file depend on T of the Collectors of those annotations: recompile it when one changes.
+                for (collector in used.flatMap { collectors.targetsOf(it) }.flatMap { collectors.collectorsFor(it) }) {
+                    tracker.recordClassLikeLookup(collector.collector, null, file.source)
                 }
             }
         }
