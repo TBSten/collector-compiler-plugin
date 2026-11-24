@@ -22,6 +22,7 @@ import org.jetbrains.kotlin.fir.declarations.utils.isInner
 import org.jetbrains.kotlin.fir.declarations.utils.isSuspend
 import org.jetbrains.kotlin.fir.declarations.utils.modality
 import org.jetbrains.kotlin.fir.declarations.utils.visibility
+import org.jetbrains.kotlin.fir.resolve.fullyExpandedType
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
 import org.jetbrains.kotlin.fir.types.coneTypeOrNull
 import org.jetbrains.kotlin.fir.types.constructClassLikeType
@@ -39,9 +40,14 @@ internal class FunctionSignature(
     val suspend: Boolean,
 )
 
+/**
+ * T read as a function type, or null when it is none. An alias of a function type is one
+ * (`typealias Handler = (String) -> String`).
+ */
 internal fun functionSignature(session: FirSession, t: ConeKotlinType): FunctionSignature? {
-    val kind = t.functionTypeKind(session) ?: return null
-    val args = t.typeArguments.map { it.type ?: return null }
+    val type = t.fullyExpandedType(session)
+    val kind = type.functionTypeKind(session) ?: return null
+    val args = type.typeArguments.map { it.type ?: return null }
     if (args.isEmpty()) return null
     return FunctionSignature(
         parameters = args.dropLast(1),
