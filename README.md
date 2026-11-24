@@ -129,6 +129,8 @@ val byPath: Map<Screen, Page> = ScreenCollector.collectAsMap()   // 同じキー
 - **`@CollectorFor<X>` の X を、同じクラスの中にネストしたアノテーションの単純名で書くことはできない。** `object Routes { annotation class Api; @CollectorFor<Api>() object C … }` は `Unresolved reference` になるので、`@CollectorFor<Routes.Api>()` と書く。
 - アイテムに付けたアノテーションは import、import の別名、typealias、ネストしたクラス名のどの書き方でも、コンパイラが解決するクラスで判定する。`expect annotation class` と `actual typealias` の組も同じ 1 つのアノテーションとして集まる。
   - 例外として、**外側のクラスの親クラスにネストしたアノテーションを単純名で書いた場合**だけはプラグインが追えず、エラー（`ANNOTATION_MISREAD`）になる。`@Base.FromSuper` のように親クラス名から書けば集まる。
+- Java で宣言したアノテーションも集められる（同じモジュールの Java ソースでも、ライブラリのものでもよい）。アイテムになるのは Kotlin の宣言だけで、Java のクラスやメソッドに付けても集まらない。
+  - **同じモジュールの Java ソースで宣言したアノテーションクラスは、メタアノテーションとしては使えない。** そのクラスに付いたアノテーションをプラグインが読めないので、エラー（`META_ANNOTATION_IN_JAVA_SOURCE`）になる。Kotlin で宣言するか、別のモジュールに置く（別モジュールの Java のものはメタアノテーションとして使える）。
 
 ## コンパイルエラーと警告
 
@@ -141,6 +143,7 @@ val byPath: Map<Screen, Page> = ScreenCollector.collectAsMap()   // 同じキー
 | `COLLECT_CALLABLE_REFERENCE` | `XCollector::collectAsList` のような参照 |
 | `COLLECTOR_FOR_NOT_OBJECT` / `COLLECTOR_FOR_NOT_COLLECTOR` / `COLLECTOR_FOR_TAG_NOT_LITERAL` / `COLLECTOR_FOR_ALIASED` | `@CollectorFor` の付け方の誤り（object でない、`Collector<T>` を実装していない、タグがリテラルでない、別名や typealias 経由で書いた） |
 | `ANNOTATION_MISREAD` | アノテーションをプラグインがコンパイラと違うクラスに読んだ（上の制約を参照）。完全修飾名で書くか、明示的に import する |
+| `META_ANNOTATION_IN_JAVA_SOURCE` | 同じモジュールの Java ソースで宣言したアノテーションクラスを、メタアノテーションとして使った |
 | `ITEM_NOT_ALLOWED_HERE` / `ITEM_NAME_CLASH` | 付けられない場所 / 同じ FQN の宣言が 2 つ（オーバーロード、別ファイルの同名宣言） |
 | `HINT_FORMAT_MISMATCH` | 別バージョンの Collector でビルドされたモジュール |
 | `ITEM_NOT_CONVERTIBLE`（警告） | どの Collector の T にも変換できない |
