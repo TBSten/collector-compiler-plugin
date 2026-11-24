@@ -81,6 +81,10 @@ internal fun conversionProblem(session: FirSession, declaration: FirDeclaration,
         is FirProperty -> {
             if (declaration.typeParameters.isNotEmpty()) return "generic properties can not be collected"
             if (declaration.receiverParameter != null) return "extension properties can not be collected"
+            // a holder reads the property from a function that is not @Composable
+            if (declaration.getter?.hasAnnotation(CollectorNames.COMPOSABLE, session) == true) {
+                return "properties with a @Composable getter can not be collected"
+            }
             val type = declaration.returnTypeRef.coneTypeOrNull ?: return "the type of ${declaration.name} is not resolved"
             if (type.isSubtypeOf(t)) null else "${declaration.name} is not a subtype of T"
         }
