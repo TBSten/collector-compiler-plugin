@@ -17,6 +17,7 @@ import org.jetbrains.kotlin.fir.declarations.utils.isInner
 import org.jetbrains.kotlin.fir.lookupTracker
 import org.jetbrains.kotlin.fir.recordNameLookup
 import org.jetbrains.kotlin.fir.resolve.providers.firProvider
+import org.jetbrains.kotlin.fir.symbols.FirBasedSymbol
 import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.FqName
 
@@ -37,7 +38,15 @@ internal class OwnItems(
      * for X is visible. The marker of `collectorMissed_<X>` names that declaration.
      */
     val missed: Map<ClassId, String>,
+    /**
+     * Every declaration the scan found a collected annotation on, items or not -> those annotations (the X's of the
+     * Collectors). The checker compares them with what the compiler resolves.
+     */
+    private val scanned: Map<FirBasedSymbol<*>, Set<ClassId>>,
 ) {
+    /** The X's the scan found [declaration] to be annotated with, directly or through meta-annotations. */
+    fun scannedAnnotations(declaration: FirBasedSymbol<*>): Set<ClassId> = scanned[declaration].orEmpty()
+
     fun missedMarker(annotation: ClassId): ClassId = CollectorNames.missedMarker(annotation, module)
 
     /** Holder object -> the item it stands for. */
@@ -84,12 +93,13 @@ internal class ItemScanner(private val session: FirSession, private val module: 
     fun scan(inherited: List<OwnItems>): OwnItems {
         val provider = session.firProvider
         val found = mutableListOf<ItemDef>()
+        val scanned = mutableMapOf<FirBasedSymbol<*>, Set<ClassId>>()
         val missed = mutableMapOf<ClassId, MutableList<String>>()
         for (pkg in provider.symbolProvider.symbolNamesProvider.getPackageNames().orEmpty()) {
             for (file in provider.getFirFilesByPackage(FqName(pkg))) {
                 val used = mutableSetOf<ClassId>()
                 for (decl in file.declarations) {
-                    collectItems(file, decl, containers = emptyList(), found, used, missed)
+                    collectItems(file, decl, containers = emptyList(), found, scanned, used, missed)
                 }
                 // A Collector for any of these annotations may appear upstream later: make IC recompile this file then.
                 val tracker = session.lookupTracker ?: continue
@@ -118,7 +128,7 @@ internal class ItemScanner(private val session: FirSession, private val module: 
         debugLog { "own items: ${result.map { it.identity.fqName + "@" + it.annotations + " -> " + it.holder.shortClassName }}" }
         // one marker per annotation and module, whichever source set misses it first
         val inheritedMissed = inherited.flatMapTo(mutableSetOf()) { it.missed.keys }
-        return OwnItems(module, result, missed.filterKeys { it !in inheritedMissed }.mapValues { (_, fqNames) -> fqNames.min() })
+        return OwnItems(module, result, missed.filterKeys { it !in inheritedMissed }.mapValues { (_, fqNames) -> fqNames.min() }, scanned)
     }
 
     private fun ClassId.caseInsensitiveName(): String = shortClassName.asString().lowercase()
@@ -132,7 +142,7 @@ internal class ItemScanner(private val session: FirSession, private val module: 
      */
     private fun collectItems(
         file: FirFile, decl: FirDeclaration, containers: List<FirRegularClass>, out: MutableList<ItemDef>,
-        used: MutableSet<ClassId>, missed: MutableMap<ClassId, MutableList<String>>,
+        scanned: MutableMap<FirBasedSymbol<*>, Set<ClassId>>, used: MutableSet<ClassId>, missed: MutableMap<ClassId, MutableList<String>>,
     ) {
         val kind = decl.itemKind() ?: return
         val name = decl.itemName() ?: return
@@ -163,10 +173,13 @@ internal class ItemScanner(private val session: FirSession, private val module: 
                 }
             }
         }
-        if (annotations.isNotEmpty() && placeable) out += ItemDef(identity, annotations, decl)
+        if (annotations.isNotEmpty()) {
+            scanned[decl.symbol] = annotations
+            if (placeable) out += ItemDef(identity, annotations, decl)
+        }
         if (decl is FirRegularClass && !decl.isInner) {
             for (member in decl.declarations) {
-                collectItems(file, member, containers + decl, out, used, missed)
+                collectItems(file, member, containers + decl, out, scanned, used, missed)
             }
         }
     }

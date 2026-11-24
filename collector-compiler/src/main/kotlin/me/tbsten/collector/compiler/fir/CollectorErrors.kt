@@ -50,6 +50,9 @@ object CollectorErrors : KtDiagnosticsContainer() {
     /** `@CollectorFor` written through an import alias or a type alias, which hides the Collector from the plugin. */
     val COLLECTOR_FOR_ALIASED by error0<KtElement>()
 
+    /** An annotation the plugin read differently from the compiler (arg: the annotations concerned). */
+    val ANNOTATION_MISREAD by error1<KtElement, String>()
+
     /** The same annotation X twice on one Collector (arg: X). */
     val COLLECTOR_FOR_DUPLICATE by warning1<KtElement, String>()
 
@@ -103,6 +106,12 @@ object CollectorErrors : KtDiagnosticsContainer() {
             map.put(
                 COLLECTOR_FOR_ALIASED,
                 "@CollectorFor must be written with its own name: through an import alias or a type alias the Collector is not registered.",
+            )
+            map.put(
+                ANNOTATION_MISREAD,
+                "Collector reads annotations before the compiler resolves them and could not tell which annotation this is: {0}. " +
+                    "Write the annotation with its full name, or import it explicitly.",
+                CommonRenderers.STRING,
             )
             map.put(COLLECTOR_FOR_DUPLICATE, "@CollectorFor<{0}> is repeated on the same object.", CommonRenderers.STRING)
             map.put(ITEM_NOT_ALLOWED_HERE, "This declaration can not be collected: {0}.", CommonRenderers.STRING)

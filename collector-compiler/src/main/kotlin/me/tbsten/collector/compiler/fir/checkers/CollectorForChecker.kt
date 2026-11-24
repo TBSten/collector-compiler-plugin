@@ -7,6 +7,7 @@ import me.tbsten.collector.compiler.fir.collectorForTarget
 import me.tbsten.collector.compiler.fir.collectorIndex
 import me.tbsten.collector.compiler.fir.stringLiteral
 import org.jetbrains.kotlin.descriptors.ClassKind
+import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
 import org.jetbrains.kotlin.diagnostics.reportOn
 import org.jetbrains.kotlin.fir.analysis.checkers.MppCheckerKind
@@ -15,7 +16,16 @@ import org.jetbrains.kotlin.fir.analysis.checkers.declaration.FirRegularClassChe
 import org.jetbrains.kotlin.fir.declarations.FirRegularClass
 import org.jetbrains.kotlin.fir.declarations.toAnnotationClassId
 import org.jetbrains.kotlin.fir.declarations.utils.classId
+import org.jetbrains.kotlin.fir.expressions.FirAnnotation
+import org.jetbrains.kotlin.fir.resolve.fullyExpandedType
 import org.jetbrains.kotlin.fir.types.classId
+import org.jetbrains.kotlin.fir.types.coneTypeOrNull
+import org.jetbrains.kotlin.fir.types.type
+import org.jetbrains.kotlin.name.ClassId
+
+/** X of a resolved `@CollectorFor<X>`, type aliases expanded. */
+private fun FirAnnotation.resolvedTarget(session: FirSession): ClassId? =
+    annotationTypeRef.coneTypeOrNull?.typeArguments?.firstOrNull()?.type?.fullyExpandedType(session)?.classId
 
 /** Checks classes annotated with `@CollectorFor`: only objects that implement `Collector<T>` are Collectors. */
 internal object CollectorForChecker : FirRegularClassChecker(MppCheckerKind.Common) {
@@ -31,9 +41,16 @@ internal object CollectorForChecker : FirRegularClassChecker(MppCheckerKind.Comm
         if (declaration.symbol.resolvedSuperTypes.none { it.classId == CollectorNames.COLLECTOR }) {
             reporter.reportOn(source, CollectorErrors.COLLECTOR_FOR_NOT_COLLECTOR)
         }
-        if (!context.session.collectorIndex.isRegistered(declaration.classId)) {
+        val index = context.session.collectorIndex
+        if (!index.isRegistered(declaration.classId)) {
             reporter.reportOn(source, CollectorErrors.COLLECTOR_FOR_ALIASED)
             return
+        }
+        // X was read before the compiler resolved types (see AnnotationResolver): the two must agree
+        val registered = index.ownCollectors.filter { it.collector == declaration.classId }.map { index.annotationClassOf(it.annotation) }
+        val misread = annotations.mapNotNull { it.resolvedTarget(context.session) }.filter { it !in registered }
+        if (misread.isNotEmpty()) {
+            reporter.reportOn(source, CollectorErrors.ANNOTATION_MISREAD, misread.joinToString { it.asFqNameString() })
         }
         for (annotation in annotations) {
             val tag = annotation.collectorForTagArgument() ?: continue

@@ -3,6 +3,7 @@ package me.tbsten.collector.compiler.fir.checkers
 import me.tbsten.collector.compiler.CollectorNames
 import me.tbsten.collector.compiler.fir.CollectorErrors
 import me.tbsten.collector.compiler.fir.collectorIndex
+import me.tbsten.collector.compiler.fir.collectorItemIndex
 import me.tbsten.collector.compiler.fir.conversionProblem
 import me.tbsten.collector.compiler.fir.describeHint
 import me.tbsten.collector.compiler.fir.expandedAnnotationIds
@@ -50,10 +51,20 @@ internal object CollectedItemChecker : FirBasicDeclarationChecker(MppCheckerKind
         }
         // the X's of the visible Collectors this declaration is annotated with
         val annotations = allAnnotations.flatMapTo(mutableSetOf()) { index.targetsOf(it) }
-        if (annotations.isEmpty()) return
+        val scanned = session.collectorItemIndex.own.scannedAnnotations(declaration.symbol)
+        if (annotations.isEmpty() && scanned.isEmpty()) return
 
-        placementProblem(declaration)?.let {
-            reporter.reportOn(source, CollectorErrors.ITEM_NOT_ALLOWED_HERE, it)
+        if (annotations.isNotEmpty()) {
+            placementProblem(declaration)?.let {
+                reporter.reportOn(source, CollectorErrors.ITEM_NOT_ALLOWED_HERE, it)
+                return
+            }
+        }
+        // The items were found before the compiler resolved annotations (see AnnotationResolver). Where the two
+        // disagree the hints are wrong, so the declaration must not compile.
+        if (scanned != annotations) {
+            val misread = (annotations - scanned) + (scanned - annotations)
+            reporter.reportOn(source, CollectorErrors.ANNOTATION_MISREAD, misread.joinToString { it.asFqNameString() })
             return
         }
         nameClash(declaration)?.let {
