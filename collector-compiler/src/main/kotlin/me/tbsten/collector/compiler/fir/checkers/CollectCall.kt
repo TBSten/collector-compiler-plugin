@@ -47,7 +47,8 @@ internal fun collectCall(expression: FirFunctionCall): CollectCall? {
     }
     // `XCollector.collect…()` or the implicit receiver of `with(XCollector) { collect…() }`
     val symbol = when {
-        receiver is FirResolvedQualifier -> receiver.qualifierSymbol as? FirRegularClassSymbol
+        // the object a qualifier stands for as a value: the object itself, or the companion of a class (`Host.collect…()`)
+        receiver is FirResolvedQualifier -> receiver.accessedObjectSymbol
         receiver is FirThisReceiverExpression && receiver.isImplicit -> receiver.resolvedType.toRegularClassSymbol(session)
         else -> null
     }
