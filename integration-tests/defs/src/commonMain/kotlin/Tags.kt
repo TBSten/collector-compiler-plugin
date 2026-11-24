@@ -4,6 +4,8 @@ import me.tbsten.collector.Collector
 import me.tbsten.collector.CollectorFor
 
 const val PLUGINS = "plugins"
+const val PLUG = "plug"
+const val PLUGINS_FROM_PARTS = PLUG + "ins"
 
 annotation class PluginA
 annotation class PluginB

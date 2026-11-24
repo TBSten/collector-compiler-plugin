@@ -1,6 +1,8 @@
 import defs.AllPluginsCollector
 import defs.EntryCollector
+import defs.PLUG
 import defs.PLUGINS
+import defs.PLUGINS_FROM_PARTS
 import defs.Page
 import defs.Plugin
 import defs.SampleCollector
@@ -15,6 +17,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
+private const val PLUGINS_IN_THIS_FILE = "$PLUG" + "ins"
+
 class TagAndAnnotationTest {
     @Test
     fun tagMergesCollectorsAndKeepsEachItemOnce() =
@@ -23,6 +27,15 @@ class TagAndAnnotationTest {
     @Test
     fun tagCanBeAConstVal() =
         assertEquals(listOf("alpha", "beta", "both"), collectAsList<Plugin>(tag = PLUGINS).map { it.id })
+
+    @Test
+    fun tagCanBeJoinedConstants() {
+        val expected = listOf("alpha", "beta", "both")
+        assertEquals(expected, collectAsList<Plugin>(tag = PLUGINS_FROM_PARTS).map { it.id })
+        assertEquals(expected, collectAsList<Plugin>(tag = PLUGINS_IN_THIS_FILE).map { it.id })
+        assertEquals(expected, collectAsList<Plugin>(tag = "plug" + "ins").map { it.id })
+        assertEquals(expected, collectAsList<Plugin>(tag = "${PLUG}ins").map { it.id })
+    }
 
     @Test
     fun tagWithASupertype() = assertEquals(3, collectAsList<Any>(tag = "plugins").size)
