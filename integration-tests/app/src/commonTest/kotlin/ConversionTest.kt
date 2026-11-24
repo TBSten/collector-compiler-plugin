@@ -47,7 +47,7 @@ class ConversionTest {
     /** With T = Any a class is an instance when one can be made, and its class reference otherwise. */
     @Test
     fun anyTakesAnInstanceOrElseTheClass() = assertEquals(
-        listOf("LooseClass()", "LooseInterface::class", "LooseObject", "LoosePrivate::class", "LooseProtected::class", "LooseTwo(7)"),
+        listOf("LooseClass()", "LooseInterface::class", "LooseObject", "LoosePrivate::class", "LooseProtected::class", "LooseTwo(7)", "LooseVararg(0)"),
         LooseCollector.collectAsList().map { if (it is KClass<*>) "${it.simpleName}::class" else it.toString() },
     )
 

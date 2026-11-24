@@ -15,6 +15,9 @@ import defs.Loose
     override fun toString() = "LooseTwo($n)"
 }
 
+// a vararg needs no argument either
+@Loose class LooseVararg(vararg val parts: String) { override fun toString() = "LooseVararg(${parts.size})" }
+
 // no instance can be made from outside, so these are collected as their class
 @Loose interface LooseInterface
 
