@@ -13,10 +13,12 @@ import org.jetbrains.kotlin.fir.symbols.FirBasedSymbol
 import org.jetbrains.kotlin.fir.symbols.SymbolInternals
 import org.jetbrains.kotlin.fir.symbols.impl.FirCallableSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirClassLikeSymbol
+import org.jetbrains.kotlin.fir.symbols.impl.FirNamedFunctionSymbol
 import org.jetbrains.kotlin.fir.toFirResolvedTypeRef
 import org.jetbrains.kotlin.fir.types.classId
 import org.jetbrains.kotlin.fir.types.coneTypeOrNull
 import org.jetbrains.kotlin.fir.types.constructClassLikeType
+import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.name.StandardClassIds
 import org.jetbrains.kotlin.types.ConstantValueKind
@@ -56,6 +58,14 @@ internal fun FirCallableSymbol<*>.hintFormat(): Int? = hintMessage()?.let { Coll
 /** The item a holder stands for, or null when [this] is not a holder this plugin can read. */
 internal fun FirClassLikeSymbol<*>.itemIdentity(): ItemIdentity? =
     hintMessage()?.let { ItemIdentity.fromFields(HintMessage.fields(it)) }
+
+/**
+ * X of a `collectorFor_` or `collectorKey_` hint as the module of the Collector knows it: the class id its message
+ * records, or else the type of the parameter `a`.
+ */
+internal fun FirCallableSymbol<*>.hintAnnotation(): ClassId? =
+    hintMessage()?.let { HintMessage.fields(it)[HintMessage.ANNOTATION] }?.let { ClassId.fromString(it) }
+        ?: (this as? FirNamedFunctionSymbol)?.valueParameterSymbols?.firstOrNull()?.resolvedReturnType?.classId
 
 /** The declaration a missed marker names, or null when [this] is not a missed marker this plugin can read. */
 internal fun FirClassLikeSymbol<*>.missedDeclaration(): String? =

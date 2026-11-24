@@ -1,6 +1,7 @@
 package me.tbsten.collector.compiler.fir
 
 import me.tbsten.collector.compiler.CollectorNames
+import me.tbsten.collector.compiler.HintMessage
 import org.jetbrains.kotlin.name.CallableId
 import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.Name
@@ -10,6 +11,8 @@ internal class HintSpec(
     val callableId: CallableId,
     val fileName: String,
     val parameters: List<Pair<Name, ClassId>>,
+    /** The `key: value` lines of the hint's message (see [HintMessage]). */
+    val fields: List<Pair<String, String>> = emptyList(),
 )
 
 /**
@@ -29,6 +32,7 @@ internal fun hintSpecs(collectors: List<CollectorDef>, items: OwnItems): Map<Cal
             HintSpec(
                 CollectorNames.collectorForHint(c.annotation), CollectorNames.collectorForHintFile(c.collector),
                 listOf(CollectorNames.ANNOTATION_PARAMETER to c.annotation, CollectorNames.COLLECTOR_PARAMETER to c.collector),
+                listOf(HintMessage.ANNOTATION to c.annotation.asString()),
             ),
         )
     }
@@ -37,6 +41,7 @@ internal fun hintSpecs(collectors: List<CollectorDef>, items: OwnItems): Map<Cal
             HintSpec(
                 CollectorNames.collectorKeyHint(c.collector), CollectorNames.collectorKeyHintFile(c.collector),
                 listOf(CollectorNames.ANNOTATION_PARAMETER to c.annotation),
+                listOf(HintMessage.ANNOTATION to c.annotation.asString()),
             ),
         )
     }

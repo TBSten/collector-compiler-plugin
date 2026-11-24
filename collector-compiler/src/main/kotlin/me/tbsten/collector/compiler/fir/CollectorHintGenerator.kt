@@ -124,7 +124,7 @@ class CollectorHintGenerator(session: FirSession) : FirDeclarationGenerationExte
             val function = createTopLevelFunction(CollectorPluginKey, callableId, unit, containingFileName = hint.fileName) {
                 hint.parameters.forEach { (name, type) -> valueParameter(name, type.constructClassLikeType()) }
             }
-            function.replaceAnnotations(function.annotations + hiddenMarker())
+            function.replaceAnnotations(function.annotations + hiddenMarker(HintMessage.of(hint.fields)))
             function.symbol
         }
     }

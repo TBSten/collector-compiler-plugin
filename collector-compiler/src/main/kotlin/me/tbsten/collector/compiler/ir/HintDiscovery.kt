@@ -37,7 +37,7 @@ internal class HintDiscovery(private val finder: DeclarationFinder) {
     private fun findEntries(collector: ClassId): List<CollectedEntry> {
         // collectorKey_<C>(a: X): the annotations C collects
         val xs = finder.findFunctions(CollectorNames.collectorKeyHint(collector))
-            .mapNotNull { it.owner.parameters.firstOrNull()?.type?.classOrNull?.owner?.classId }
+            .mapNotNull { it.owner.hintAnnotation() }
             .distinct()
         val asName = CollectorNames.asFunction(collector)
         // item_<X>(i: Item_…): the holders of the items annotated with X

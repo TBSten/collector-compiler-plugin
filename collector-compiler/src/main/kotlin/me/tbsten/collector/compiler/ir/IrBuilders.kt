@@ -25,14 +25,17 @@ import org.jetbrains.kotlin.ir.expressions.IrStatementOrigin
 import org.jetbrains.kotlin.ir.expressions.impl.IrFunctionExpressionImpl
 import org.jetbrains.kotlin.ir.types.IrSimpleType
 import org.jetbrains.kotlin.ir.types.IrType
+import org.jetbrains.kotlin.ir.types.classOrNull
 import org.jetbrains.kotlin.ir.types.isUnit
 import org.jetbrains.kotlin.ir.types.typeOrFail
+import org.jetbrains.kotlin.ir.util.classId
 import org.jetbrains.kotlin.ir.util.deepCopyWithSymbols
 import org.jetbrains.kotlin.ir.util.hasAnnotation
 import org.jetbrains.kotlin.ir.util.isAnnotationWithEqualFqName
 import org.jetbrains.kotlin.ir.util.isKSuspendFunction
 import org.jetbrains.kotlin.ir.util.isSuspendFunction
 import org.jetbrains.kotlin.name.CallableId
+import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.name.SpecialNames
 
@@ -40,12 +43,23 @@ import org.jetbrains.kotlin.name.SpecialNames
 internal fun IrDeclaration.isCollectorGenerated(): Boolean =
     (origin as? IrDeclarationOrigin.GeneratedByPlugin)?.pluginKey == CollectorPluginKey
 
-/** The item a holder stands for, read from the message FIR gave it, or null when [this] is not a holder. */
-internal fun IrClass.itemIdentity(): ItemIdentity? {
-    val marker = annotations.firstOrNull { it.isAnnotationWithEqualFqName(StandardNames.FqNames.deprecated) } ?: return null
-    val message = (marker.arguments.firstOrNull() as? IrConst)?.value as? String ?: return null
-    return ItemIdentity.fromFields(HintMessage.fields(message))
+/** The `key: value` lines of the message FIR gave a generated declaration (see [HintMessage]). */
+private fun IrDeclaration.hintFields(): Map<String, String> {
+    val marker = annotations.firstOrNull { it.isAnnotationWithEqualFqName(StandardNames.FqNames.deprecated) } ?: return emptyMap()
+    val message = (marker.arguments.firstOrNull() as? IrConst)?.value as? String ?: return emptyMap()
+    return HintMessage.fields(message)
 }
+
+/** The item a holder stands for, or null when [this] is not a holder. */
+internal fun IrClass.itemIdentity(): ItemIdentity? = ItemIdentity.fromFields(hintFields())
+
+/**
+ * X of a `collectorKey_` hint as the module of the Collector knows it, which the hints of the items are named after:
+ * the class id its message records, or else the type of its parameter (which is the `actual` class of an `expect`
+ * annotation, and so not always X).
+ */
+internal fun IrSimpleFunction.hintAnnotation(): ClassId? =
+    hintFields()[HintMessage.ANNOTATION]?.let { ClassId.fromString(it) } ?: parameters.firstOrNull()?.type?.classOrNull?.owner?.classId
 
 /** The callable id of a top-level function, or null for members and local functions. */
 internal fun IrSimpleFunction.callableIdOrNull(): CallableId? {

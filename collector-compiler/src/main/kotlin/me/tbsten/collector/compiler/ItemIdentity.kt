@@ -72,7 +72,8 @@ internal data class ItemIdentity(
 
 /**
  * The message of the `@Deprecated(level = HIDDEN)` on everything the plugin generates in `collector.hints`. The first
- * line records the hint format; holders and missed markers add `key: value` lines about what they stand for.
+ * line records the hint format; holders, missed markers and the hints of a Collector add `key: value` lines about what
+ * they stand for.
  */
 internal object HintMessage {
     fun of(fields: List<Pair<String, String>>): String =
@@ -86,6 +87,13 @@ internal object HintMessage {
 
     /** The field of a missed marker: one of the declarations that were not collected. */
     const val MISSED = "missed"
+
+    /**
+     * The field of a `collectorFor_` or `collectorKey_` hint: the class id of X as the module of the Collector knows
+     * it, which the hints of the items are named after. The type of the hint's parameter can not tell: for an `expect`
+     * annotation it turns into the `actual` class.
+     */
+    const val ANNOTATION = "annotation"
 
     private const val SEPARATOR = ": "
 }

@@ -40,10 +40,13 @@ class CollectorHints(session: FirSession) : FirExtensionSessionComponent(session
 
     private val annotationsByCollector: FirCache<ClassId, List<ClassId>, Nothing?> =
         session.firCachesFactory.createCache { collector ->
-            hints(CollectorNames.collectorKeyHint(collector)).mapNotNull { it.parameterClassId(0) }.distinct()
+            hints(CollectorNames.collectorKeyHint(collector)).mapNotNull { it.hintAnnotation() }.distinct()
         }
 
-    /** Annotations X the collector [collector] collects, read from its `collectorKey_` hints. */
+    /**
+     * Annotations X the collector [collector] collects, read from its `collectorKey_` hints: as the module of the
+     * Collector knows them, which is what the hints of the items are named after.
+     */
     internal fun annotationsOf(collector: ClassId): List<ClassId> = annotationsByCollector.getValue(collector)
 
     /** The Collectors declared with [tag], read from the `collectorTag_` hints. */
@@ -58,7 +61,7 @@ class CollectorHints(session: FirSession) : FirExtensionSessionComponent(session
         for (collector in collectors) {
             val keys = hints(CollectorNames.collectorKeyHint(collector))
             addAll(keys)
-            keys.mapNotNull { it.parameterClassId(0) }.distinct().forEach { x -> addAll(hints(CollectorNames.itemHint(x))) }
+            keys.mapNotNull { it.hintAnnotation() }.distinct().forEach { x -> addAll(hints(CollectorNames.itemHint(x))) }
         }
     }
 
