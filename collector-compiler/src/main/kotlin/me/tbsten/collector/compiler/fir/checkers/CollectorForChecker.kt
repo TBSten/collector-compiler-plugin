@@ -18,6 +18,8 @@ import org.jetbrains.kotlin.fir.declarations.toAnnotationClassId
 import org.jetbrains.kotlin.fir.declarations.utils.classId
 import org.jetbrains.kotlin.fir.expressions.FirAnnotation
 import org.jetbrains.kotlin.fir.resolve.fullyExpandedType
+import org.jetbrains.kotlin.fir.resolve.providers.symbolProvider
+import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
 import org.jetbrains.kotlin.fir.types.classId
 import org.jetbrains.kotlin.fir.types.coneTypeOrNull
 import org.jetbrains.kotlin.fir.types.type
@@ -40,6 +42,16 @@ internal object CollectorForChecker : FirRegularClassChecker(MppCheckerKind.Comm
         }
         if (declaration.symbol.resolvedSuperTypes.none { it.classId == CollectorNames.COLLECTOR }) {
             reporter.reportOn(source, CollectorErrors.COLLECTOR_FOR_NOT_COLLECTOR)
+        }
+        for (annotation in annotations) {
+            val x = annotation.resolvedTarget(context.session) ?: continue
+            val xClass = context.session.symbolProvider.getClassLikeSymbolByClassId(x) as? FirRegularClassSymbol
+            val problem = when {
+                xClass?.classKind != ClassKind.ANNOTATION_CLASS -> CollectorErrors.COLLECTOR_FOR_NOT_ANNOTATION_CLASS
+                xClass.typeParameterSymbols.isNotEmpty() -> CollectorErrors.COLLECTOR_FOR_GENERIC_ANNOTATION
+                else -> continue
+            }
+            reporter.reportOn(annotation.source ?: source, problem, x.asFqNameString())
         }
         val index = context.session.collectorIndex
         if (!index.isRegistered(declaration.classId)) {

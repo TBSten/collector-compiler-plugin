@@ -47,6 +47,12 @@ object CollectorErrors : KtDiagnosticsContainer() {
     /** `@CollectorFor` on an object that does not implement `Collector<T>`. */
     val COLLECTOR_FOR_NOT_COLLECTOR by error0<KtElement>()
 
+    /** X of `@CollectorFor<X>` that is not an annotation class: `Nothing`, `Annotation` (arg: X). */
+    val COLLECTOR_FOR_NOT_ANNOTATION_CLASS by error1<KtElement, String>()
+
+    /** X of `@CollectorFor<X>` that is an annotation class with type parameters (arg: X). */
+    val COLLECTOR_FOR_GENERIC_ANNOTATION by error1<KtElement, String>()
+
     /** `@CollectorFor` written through an import alias or a type alias, which hides the Collector from the plugin. */
     val COLLECTOR_FOR_ALIASED by error0<KtElement>()
 
@@ -130,6 +136,17 @@ object CollectorErrors : KtDiagnosticsContainer() {
                 META_ANNOTATION_IN_JAVA_SOURCE,
                 "{0} is declared in a Java source of this module, where Collector can not read the annotations on it, so this " +
                     "declaration is not collected through it. Declare it in Kotlin or in another module, or annotate this declaration directly.",
+                CommonRenderers.STRING,
+            )
+            map.put(
+                COLLECTOR_FOR_NOT_ANNOTATION_CLASS,
+                "{0} is not an annotation class, so no declaration can be annotated with it.",
+                CommonRenderers.STRING,
+            )
+            map.put(
+                COLLECTOR_FOR_GENERIC_ANNOTATION,
+                "{0} has type parameters. Collector does not tell the type arguments of an annotation apart, " +
+                    "so annotation classes with type parameters can not be collected.",
                 CommonRenderers.STRING,
             )
             map.put(COLLECTOR_FOR_DUPLICATE, "@CollectorFor<{0}> is repeated on the same object.", CommonRenderers.STRING)
