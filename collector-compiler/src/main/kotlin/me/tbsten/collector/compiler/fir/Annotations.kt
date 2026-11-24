@@ -7,6 +7,7 @@ import org.jetbrains.kotlin.fir.expressions.FirAnnotationCall
 import org.jetbrains.kotlin.fir.expressions.FirExpression
 import org.jetbrains.kotlin.fir.expressions.FirLiteralExpression
 import org.jetbrains.kotlin.fir.expressions.FirNamedArgumentExpression
+import org.jetbrains.kotlin.fir.types.ConeErrorType
 import org.jetbrains.kotlin.fir.types.FirTypeProjectionWithVariance
 import org.jetbrains.kotlin.fir.types.classId
 import org.jetbrains.kotlin.fir.types.coneTypeOrNull
@@ -21,10 +22,19 @@ import org.jetbrains.kotlin.name.Name
 internal fun FirAnnotation.annotatesDeclaration(): Boolean =
     useSiteTarget == null || useSiteTarget == AnnotationUseSiteTarget.PROPERTY
 
-/** X of a `@CollectorFor<X>` annotation, whether or not its type arguments are resolved yet. */
-internal fun FirAnnotation.collectorForTarget(): ClassId? =
-    annotationTypeRef.coneTypeOrNull?.typeArguments?.firstOrNull()?.type?.classId
-        ?: (typeArguments.firstOrNull() as? FirTypeProjectionWithVariance)?.typeRef?.coneTypeOrNull?.classId
+/**
+ * X of a `@CollectorFor<X>` annotation, whether or not its type arguments are resolved yet. Null when X does not
+ * resolve: the compiler reports that, and an error type has a class id too (`<error>`).
+ */
+internal fun FirAnnotation.collectorForTarget(): ClassId? {
+    val x = annotationTypeRef.coneTypeOrNull?.typeArguments?.firstOrNull()?.type
+        ?: (typeArguments.firstOrNull() as? FirTypeProjectionWithVariance)?.typeRef?.coneTypeOrNull
+    return x?.takeIf { it !is ConeErrorType }?.classId
+}
+
+/** Whether X of this resolved `@CollectorFor<X>` is a type the compiler could not resolve. */
+internal fun FirAnnotation.collectorForTargetIsUnresolved(): Boolean =
+    annotationTypeRef.coneTypeOrNull?.typeArguments?.firstOrNull()?.type is ConeErrorType
 
 private val TAG = Name.identifier("tag")
 

@@ -4,6 +4,7 @@ import me.tbsten.collector.compiler.CollectorNames
 import me.tbsten.collector.compiler.fir.CollectorErrors
 import me.tbsten.collector.compiler.fir.collectorForTagArgument
 import me.tbsten.collector.compiler.fir.collectorForTarget
+import me.tbsten.collector.compiler.fir.collectorForTargetIsUnresolved
 import me.tbsten.collector.compiler.fir.collectorIndex
 import me.tbsten.collector.compiler.fir.stringLiteral
 import org.jetbrains.kotlin.descriptors.ClassKind
@@ -43,6 +44,8 @@ internal object CollectorForChecker : FirRegularClassChecker(MppCheckerKind.Comm
         if (declaration.symbol.resolvedSuperTypes.none { it.classId == CollectorNames.COLLECTOR }) {
             reporter.reportOn(source, CollectorErrors.COLLECTOR_FOR_NOT_COLLECTOR)
         }
+        // An X that does not resolve is the compiler's error to report; nothing below can be told about it.
+        if (annotations.any { it.collectorForTargetIsUnresolved() }) return
         for (annotation in annotations) {
             val x = annotation.resolvedTarget(context.session) ?: continue
             val xClass = context.session.symbolProvider.getClassLikeSymbolByClassId(x) as? FirRegularClassSymbol
