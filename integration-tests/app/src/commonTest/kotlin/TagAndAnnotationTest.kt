@@ -1,5 +1,7 @@
 import defs.AllPluginsCollector
 import defs.EntryCollector
+import defs.Keyed
+import defs.KeyedCollector
 import defs.PLUG
 import defs.PLUGINS
 import defs.PLUGINS_FROM_PARTS
@@ -86,6 +88,13 @@ class TagAndAnnotationTest {
         val map: Map<Screen, Page> = ScreenCollector.collectAsMap()
         assertEquals(listOf("/home", "/settings"), map.keys.map { it.path })
         assertEquals("Home", map.entries.first { it.key.path == "/home" }.value.title)
+    }
+
+    @Test
+    fun asMapWithArrayArguments() {
+        val map = KeyedCollector.collectAsMap<Keyed, String>()
+        assertEquals(listOf("defs"), map.values.toList())
+        assertEquals(listOf("a", "b"), map.keys.single().names.toList())
     }
 
     private val lazyMap by ScreenCollector.lazyCollectAsMap<Screen, Page>()
