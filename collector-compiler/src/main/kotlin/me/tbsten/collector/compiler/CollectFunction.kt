@@ -11,6 +11,12 @@ internal enum class CollectKind(val functionName: String) {
     AS_ARRAY("collectAsArray"),
     SINGLE("collectSingle"),
     SINGLE_OR_NULL("collectSingleOrNull"),
+    WITH_ANNOTATION("collectWithAnnotation"),
+    AS_MAP("collectAsMap"),
+    ;
+
+    /** The result pairs each item with its annotation, so the call has the type arguments `<A, T>`. */
+    val withAnnotations: Boolean get() = this == WITH_ANNOTATION || this == AS_MAP
 }
 
 /** A `collect*()` / `lazyCollect*()` placeholder of the runtime: FIR checks calls to it and IR replaces them. */

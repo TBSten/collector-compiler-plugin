@@ -29,9 +29,12 @@ internal data class CollectorDef(
     val tag: String? = null,
 ) {
     /** T of `Collector<T>`. Only call after the SUPERTYPES phase. */
-    val elementType: ConeKotlinType?
-        get() = symbol.resolvedSuperTypes.firstOrNull { it.classId == CollectorNames.COLLECTOR }?.typeArguments?.firstOrNull()?.type
+    val elementType: ConeKotlinType? get() = symbol.collectorElementType()
 }
+
+/** T of the `Collector<T>` this class implements, or null when it does not. Only call after the SUPERTYPES phase. */
+internal fun FirClassSymbol<*>.collectorElementType(): ConeKotlinType? =
+    resolvedSuperTypes.firstOrNull { it.classId == CollectorNames.COLLECTOR }?.typeArguments?.firstOrNull()?.type
 
 /** The Collectors visible from this module: its own `@CollectorFor` objects and the `collectorFor_` hints on the classpath. */
 class CollectorIndex(session: FirSession) : FirExtensionSessionComponent(session) {

@@ -71,6 +71,7 @@ internal class CollectCallTransformer(
         // the count is checked on the FIR side
         CollectKind.SINGLE -> entries.singleOrNull()?.let { value(b, it) } ?: error("Collector: collectSingle() needs exactly one item")
         CollectKind.SINGLE_OR_NULL -> entries.singleOrNull()?.let { value(b, it) } ?: b.irNull(resultType)
+        CollectKind.WITH_ANNOTATION, CollectKind.AS_MAP -> error("Collector: ${kind.functionName}() is not rewritten yet")
     }
 
     private fun varargCall(
