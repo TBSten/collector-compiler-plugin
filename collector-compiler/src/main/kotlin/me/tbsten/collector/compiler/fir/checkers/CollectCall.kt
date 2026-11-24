@@ -47,11 +47,11 @@ internal fun collectCall(expression: FirFunctionCall): CollectCall? {
         val collectors = tag?.let { session.collectorHints.collectorsWithTag(it) }.orEmpty()
         return CollectCall(function, expression, tag, collectors, receiverIsValid = true)
     }
-    // `XCollector.collect…()` or the implicit receiver of `with(XCollector) { collect…() }`
-    val symbol = when {
+    // `XCollector.collect…()`, or the receiver of `with(XCollector) { collect…() }`, written (`this.collect…()`) or not
+    val symbol = when (receiver) {
         // the object a qualifier stands for as a value: the object itself, or the companion of a class (`Host.collect…()`)
-        receiver is FirResolvedQualifier -> receiver.accessedObjectSymbol
-        receiver is FirThisReceiverExpression && receiver.isImplicit -> receiver.resolvedType.toRegularClassSymbol(session)
+        is FirResolvedQualifier -> receiver.accessedObjectSymbol
+        is FirThisReceiverExpression -> receiver.resolvedType.toRegularClassSymbol(session)
         else -> null
     }
     val collector = symbol?.takeIf { it.classKind == ClassKind.OBJECT && it.hasAnnotation(CollectorNames.COLLECTOR_FOR, session) }
