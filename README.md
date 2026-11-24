@@ -62,9 +62,10 @@ object XCollector : Collector<T>  // T: 取り出すときの型
 - `Any` のようにインスタンスも `KClass` も受け取れる T では、作れる class はインスタンスになり、作れないもの（interface や、呼べるコンストラクタのない class）は `Cls::class` になる。
 - class のメンバー、inner class、ローカル宣言、引数、型エイリアスには付けられない（エラー）。
 - 変換できない組み合わせは、その Collector では集めない。見えているどの Collector にも合わなければ警告。
+- 1 つのファイル、または 1 つの object の中では、集める宣言の名前を重複させられない（オーバーロードや、同名の関数とプロパティはエラー）。同じパッケージの別ファイルなら同じ名前でよい（画面ごとのファイルに置く `private fun Preview()` など）。
 - 細かい入力の扱い:
   - `@get:X` / `@field:X` は対象外で、`@X` と `@property:X` だけを集める。
-  - expect に付けた場合は actual の 1 件として数える。
+  - expect に付けた場合は actual の 1 件として数える。アノテーションは expect に付けたものを使う（actual で繰り返さなくてよい）。actual にだけ付けたアノテーションは集められず、警告（`ITEM_ANNOTATION_ONLY_ON_ACTUAL`）になるので、expect にも付ける。expect にアノテーションのない宣言は、actual がそのままアイテムになる。
   - 同じ宣言に同じアノテーションを 2 回付けても 1 件。`collectWithAnnotation` ではアノテーションごとに 1 件ずつになる。
 
 ### メタアノテーション（マルチプレビュー）
@@ -92,7 +93,7 @@ XCollector.collectSingleOrNull()  // T?（2 件以上はコンパイルエラー
 val all by XCollector.lazyCollectAsList()   // 上のすべてに lazy 版がある（Lazy<…>）
 ```
 
-- 順序は宣言の FQN 順で固定。
+- 順序は宣言の FQN 順で固定。FQN が同じ宣言（別モジュールや別ファイルの同名）は、モジュール名、ファイル名の順に並ぶ。
 - 受け手は `@CollectorFor` の object を直接指す必要がある（`with(XCollector) { collectAsList() }`、`run`、`apply` も可）。変数経由、`let` の `it`、関数参照（`XCollector::collectAsList`）はエラー。
 - 結果は **呼び出しを含むモジュールのコンパイル時** に決まる。
 
@@ -122,6 +123,7 @@ val byPath: Map<Screen, Page> = ScreenCollector.collectAsMap()   // 同じキー
 ## 制約
 
 - **アイテムを含むモジュールから Collector が見えている必要がある。** Collector が見えないモジュールのアイテムは集められない。自前のアノテーションなら、Collector を同じファイルに置けば必ず見える。
+  - ソースセットでも同じ。Collector を `jvmMain` などプラットフォーム側に置くと、`commonMain` のアイテムからは見えないので集められない。Collector は `commonMain` に置く。
   - 見えずに集められなかった宣言があると、取り出す側の呼び出しで警告（`COLLECT_MISSED_ITEMS`）が出る。
 - **取り出すモジュールから、アイテムを含むモジュールが見えている必要がある。** `implementation` の推移依存の先にあるアイテムは見えないので、`api` で公開する。
 - ほかのバージョンの Collector でビルドされたモジュールが混ざると、エラー（`HINT_FORMAT_MISMATCH`）で再ビルドを促す。
@@ -144,9 +146,10 @@ val byPath: Map<Screen, Page> = ScreenCollector.collectAsMap()   // 同じキー
 | `COLLECTOR_FOR_NOT_OBJECT` / `COLLECTOR_FOR_NOT_COLLECTOR` / `COLLECTOR_FOR_TAG_NOT_LITERAL` / `COLLECTOR_FOR_ALIASED` | `@CollectorFor` の付け方の誤り（object でない、`Collector<T>` を実装していない、タグがリテラルでない、別名や typealias 経由で書いた） |
 | `ANNOTATION_MISREAD` | アノテーションをプラグインがコンパイラと違うクラスに読んだ（上の制約を参照）。完全修飾名で書くか、明示的に import する |
 | `META_ANNOTATION_IN_JAVA_SOURCE` | 同じモジュールの Java ソースで宣言したアノテーションクラスを、メタアノテーションとして使った |
-| `ITEM_NOT_ALLOWED_HERE` / `ITEM_NAME_CLASH` | 付けられない場所 / 同じ FQN の宣言が 2 つ（オーバーロード、別ファイルの同名宣言） |
+| `ITEM_NOT_ALLOWED_HERE` / `ITEM_NAME_CLASH` | 付けられない場所 / 1 つのファイルか object の中に同じ名前の宣言が 2 つ（オーバーロード、同名の関数とプロパティ） |
 | `HINT_FORMAT_MISMATCH` | 別バージョンの Collector でビルドされたモジュール |
 | `ITEM_NOT_CONVERTIBLE`（警告） | どの Collector の T にも変換できない |
+| `ITEM_ANNOTATION_ONLY_ON_ACTUAL`（警告） | expect がアイテムの宣言で、actual にだけ付けたアノテーションがある（集められない） |
 | `COLLECT_MISSED_ITEMS`（警告） | Collector が見えないモジュールで付けられ、集められなかった宣言がある |
 | `COLLECTOR_FOR_DUPLICATE`（警告） | 同じ `@CollectorFor<X>` の重複 |
 
