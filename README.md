@@ -146,6 +146,7 @@ val byPath: Map<Screen, Page> = ScreenCollector.collectAsMap()   // 同じキー
 | `COLLECT_ANNOTATION_TYPE_MISMATCH` / `COLLECT_AS_MAP_DUPLICATE_KEY` | アノテーションの型が合わない / Map のキーが重複 |
 | `COLLECT_CALLABLE_REFERENCE` | `XCollector::collectAsList` のような参照 |
 | `COLLECTOR_FOR_NOT_OBJECT` / `COLLECTOR_FOR_NOT_COLLECTOR` / `COLLECTOR_FOR_TAG_NOT_LITERAL` / `COLLECTOR_FOR_ALIASED` | `@CollectorFor` の付け方の誤り（object でない、`Collector<T>` を実装していない、タグがリテラルでない、別名や typealias 経由で書いた） |
+| `COLLECTOR_FOR_NOT_ANNOTATION_CLASS` / `COLLECTOR_FOR_GENERIC_ANNOTATION` | `@CollectorFor<X>` の X が annotation class でない（`Nothing`、`Annotation`）/ 型パラメータを持つ annotation class（型引数の違いは区別しないため、集められない） |
 | `ANNOTATION_MISREAD` | アノテーションをプラグインがコンパイラと違うクラスに読んだ（上の制約を参照）。完全修飾名で書くか、明示的に import する |
 | `META_ANNOTATION_IN_JAVA_SOURCE` | 同じモジュールの Java ソースで宣言したアノテーションクラスを、メタアノテーションとして使った |
 | `ITEM_NOT_ALLOWED_HERE` / `ITEM_NAME_CLASH` | 付けられない場所 / 1 つのファイルか object の中に同じ名前の宣言が 2 つ（オーバーロード、同名の関数とプロパティ） |
