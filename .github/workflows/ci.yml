@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+# A newer push to a pull request replaces its run; every commit on main keeps its own result.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Compiler unit tests
+        run: ./gradlew :collector-compiler:test
+      - name: Integration tests (jvm / js / wasmJs / linuxX64)
+        working-directory: integration-tests
+        run: ./gradlew allTests --continue
+      - name: Incremental compilation
+        working-directory: integration-tests
+        run: ./scripts/ic-check.sh
+      - name: Compile errors
+        working-directory: integration-tests
+        run: ./scripts/error-check.sh
+
+  macos:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Integration tests (macosArm64)
+        working-directory: integration-tests
+        run: ./gradlew :app:macosArm64Test --continue
