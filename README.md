@@ -120,6 +120,7 @@ val byPath: Map<Screen, Page> = ScreenCollector.collectAsMap()   // 同じキー
 ## 制約
 
 - **アイテムを含むモジュールから Collector が見えている必要がある。** Collector が見えないモジュールのアイテムは集められない。自前のアノテーションなら、Collector を同じファイルに置けば必ず見える。
+  - 見えずに集められなかった宣言があると、取り出す側の呼び出しで警告（`COLLECT_MISSED_ITEMS`）が出る。
 - **取り出すモジュールから、アイテムを含むモジュールが見えている必要がある。** `implementation` の推移依存の先にあるアイテムは見えないので、`api` で公開する。
 - ほかのバージョンの Collector でビルドされたモジュールが混ざると、エラー（`HINT_FORMAT_MISMATCH`）で再ビルドを促す。
 
@@ -136,6 +137,7 @@ val byPath: Map<Screen, Page> = ScreenCollector.collectAsMap()   // 同じキー
 | `ITEM_NOT_ALLOWED_HERE` / `ITEM_NAME_CLASH` | 付けられない場所 / 同じ FQN の宣言が 2 つ（オーバーロード、別ファイルの同名宣言） |
 | `HINT_FORMAT_MISMATCH` | 別バージョンの Collector でビルドされたモジュール |
 | `ITEM_NOT_CONVERTIBLE`（警告） | どの Collector の T にも変換できない |
+| `COLLECT_MISSED_ITEMS`（警告） | Collector が見えないモジュールで付けられ、集められなかった宣言がある |
 | `COLLECTOR_FOR_DUPLICATE`（警告） | 同じ `@CollectorFor<X>` の重複 |
 
 ## モジュール
