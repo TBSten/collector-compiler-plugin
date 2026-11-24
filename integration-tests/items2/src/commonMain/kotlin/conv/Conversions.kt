@@ -47,6 +47,11 @@ object Host {
 
 @Conv val dup: Shape = object : Shape { override val id = "dup" }
 
+// an overload that is not collected, declared first: the item is the annotated function
+fun stamped(width: Int, height: Int): Shape = object : Shape { override val id = "stamped:${width}x$height" }
+
+@Conv fun stamped(name: String): Shape = object : Shape { override val id = "stamped:$name" }
+
 @Route fun Router.users() { routes += "users" }
 
 @Route fun health(router: Router) { router.routes += "health" }

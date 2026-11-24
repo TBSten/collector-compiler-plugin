@@ -20,7 +20,7 @@ class ConversionTest {
 
     @Test
     fun factories() = assertEquals(
-        listOf("named:x", "made:x", "sized:1"),
+        listOf("named:x", "made:x", "sized:1", "stamped:x"),
         ShapeFactoryCollector.collectAsList().map { it("x").id },
     )
 
