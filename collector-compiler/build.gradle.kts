@@ -18,6 +18,8 @@ dependencies {
     // kotlin-compiler-embeddable, so the compiler is pinned to the version the plugin supports.
     testImplementation(libs.kctfork)
     testImplementation(project(":collector-runtime"))
+    // property-based tests (test plan PBT-*): generators and shrinking only, run from kotlin.test
+    testImplementation(libs.kotest.property)
 }
 
 configurations.matching { it.name.startsWith("test") }.configureEach {

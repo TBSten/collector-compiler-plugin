@@ -1,12 +1,14 @@
 [versions]
 kotlin = "2.4.21"
 kctfork = "0.14.0"
+kotest = "6.2.7"
 
 [libraries]
 kotlin-compiler-embeddable = { module = "org.jetbrains.kotlin:kotlin-compiler-embeddable", version.ref = "kotlin" }
 kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
 
 kctfork = { module = "dev.zacsweers.kctfork:core", version.ref = "kctfork" }
+kotest-property = { module = "io.kotest:kotest-property", version.ref = "kotest" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
