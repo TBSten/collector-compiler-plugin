@@ -67,6 +67,10 @@ internal fun FirCallableSymbol<*>.hintAnnotation(): ClassId? =
     hintMessage()?.let { HintMessage.fields(it)[HintMessage.ANNOTATION] }?.let { ClassId.fromString(it) }
         ?: (this as? FirNamedFunctionSymbol)?.valueParameterSymbols?.firstOrNull()?.resolvedReturnType?.classId
 
+/** The Collectors that were visible where the item of the holder [this] is declared (see [HintMessage.COLLECTOR]). */
+internal fun FirClassLikeSymbol<*>.visibleCollectors(): Set<ClassId> =
+    hintMessage()?.let { message -> HintMessage.values(message, HintMessage.COLLECTOR).mapTo(mutableSetOf()) { ClassId.fromString(it) } }.orEmpty()
+
 /** The declaration a missed marker names, or null when [this] is not a missed marker this plugin can read. */
 internal fun FirClassLikeSymbol<*>.missedDeclaration(): String? =
     hintMessage()?.let { HintMessage.fields(it)[HintMessage.MISSED] }

@@ -80,6 +80,31 @@ class CollectorHints(session: FirSession) : FirExtensionSessionComponent(session
             .distinct().sorted()
 
     /**
+     * The X's whose items a Collector of [annotation] could have: [annotation], and the other X's of visible
+     * Collectors that are the same class here (an `expect` annotation and the class its `actual` is an alias of).
+     */
+    internal fun sameAnnotationAs(annotation: ClassId): Set<ClassId> {
+        val index = session.collectorIndex
+        return index.targetsOf(index.annotationClassOf(annotation)) + annotation
+    }
+
+    /**
+     * Items annotated with [annotation] that [collector] does not get because it was out of sight where they are
+     * declared: in a module compiled before the Collector existed, or in a source set the Collector is not part of
+     * (an item of commonMain and a Collector of jvmMain). One example per module, sorted.
+     *
+     * These items have a holder, made for the Collectors their module did see. Declarations of a module that saw no
+     * Collector at all have none; see [missedDeclarationsOf].
+     */
+    internal fun unseenItemsOf(collector: ClassId, annotation: ClassId): List<String> =
+        sameAnnotationAs(annotation).flatMap { holdersOf(it) }.distinct()
+            .mapNotNull { session.symbolProvider.getClassLikeSymbolByClassId(it) }
+            .filter { holder -> holder.visibleCollectors().let { it.isNotEmpty() && collector !in it } }
+            .mapNotNull { it.itemIdentity() }
+            .groupBy { it.module }.map { (_, items) -> items.min().fqName }
+            .sorted()
+
+    /**
      * The items the call site sees for [collectors], sorted by FQN, with the same rules as the IR rewrite: one per
      * holder, and only holders that convert for the Collector.
      */

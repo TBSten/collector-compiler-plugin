@@ -74,7 +74,10 @@ object CollectorErrors : KtDiagnosticsContainer() {
     /** A collected declaration that no visible Collector can convert (arg: per-Collector reasons). */
     val ITEM_NOT_CONVERTIBLE by warning1<KtElement, String>()
 
-    /** A dependency has declarations with a collected annotation but saw no Collector for it (arg: those annotations). */
+    /**
+     * Declarations with a collected annotation that the Collector of the call does not get, because it was not
+     * visible where they are declared (arg: the annotations, with examples).
+     */
     val COLLECT_MISSED_ITEMS by warning1<KtElement, String>()
 
     override fun getRendererFactory(): BaseDiagnosticRendererFactory = Renderers
@@ -83,8 +86,9 @@ object CollectorErrors : KtDiagnosticsContainer() {
         override val MAP by KtDiagnosticFactoryToRendererMap("Collector") { map ->
             map.put(
                 COLLECT_MISSED_ITEMS,
-                "Some declarations are not collected because their module could not see a Collector for the annotation " +
-                    "when it was compiled: {0}. Make the Collector visible to that module, e.g. declare it next to the annotation.",
+                "Some declarations are not collected because the Collector was not visible where they are declared " +
+                    "(another module, or a source set the Collector is not part of): {0}. " +
+                    "Make the Collector visible there, e.g. declare it next to the annotation.",
                 CommonRenderers.STRING,
             )
             map.put(COLLECT_TAG_NOT_CONSTANT, "The tag must be a compile-time constant (a string literal or a const val).")

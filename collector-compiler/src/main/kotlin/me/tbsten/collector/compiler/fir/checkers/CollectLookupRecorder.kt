@@ -50,6 +50,11 @@ internal object CollectLookupRecorder : FirFunctionCallChecker(MppCheckerKind.Co
                     tracker.recordClassMemberLookup(asFunction, holder, expression.source, fileSource)
                     tracker.recordClassMemberLookup(annotationsFunction, holder, expression.source, fileSource)
                 }
+                // the holders under another name of the same annotation only matter for the warning about unseen items
+                for (other in session.collectorHints.sameAnnotationAs(x) - x) {
+                    lookup(CollectorNames.itemHint(other))
+                    session.collectorHints.holdersOf(other).forEach { tracker.recordClassLikeLookup(it, expression.source, fileSource) }
+                }
             }
         }
     }
