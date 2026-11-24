@@ -115,7 +115,7 @@ class ModelPropertyTest {
                         labels(Values.collectAsArray().toList()),
                         labels(Values.lazyCollectAsList().value),
                         labels(Values.lazyCollectAsSet().value),
-                        // lazyCollectAsSequence is left out while it produces invalid IR (RetrievalTest.d4_lazySequence)
+                        labels(Values.lazyCollectAsSequence().value.toList()),
                         labels(Values.lazyCollectAsArray().value.toList()),
                     )
                 }""",
