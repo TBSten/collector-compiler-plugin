@@ -135,6 +135,7 @@ val byPath: Map<Screen, Page> = ScreenCollector.collectAsMap()   // 同じキー
 - ほかのバージョンの Collector でビルドされたモジュールが混ざると、エラー（`HINT_FORMAT_MISMATCH`）で再ビルドを促す。
 - **`@CollectorFor` はその名前のまま書く。** import の別名（`import …CollectorFor as Register`）や typealias 経由だと Collector として登録されないので、エラー（`COLLECTOR_FOR_ALIASED`）にしている。
 - **`@CollectorFor<X>` の X を、同じクラスの中にネストしたアノテーションの単純名で書くことはできない。** `object Routes { annotation class Api; @CollectorFor<Api>() object C … }` は `Unresolved reference` になるので、`@CollectorFor<Routes.Api>()` と書く。
+- **型パラメータを持つアノテーションクラスは X にできない**（エラー `COLLECTOR_FOR_GENERIC_ANNOTATION`）。型引数の違いを区別しないため。`@CollectorFor` 自身も型パラメータを持つので、Collector を集める Collector（`@CollectorFor<CollectorFor<*>>`）は書けない。
 - アイテムに付けたアノテーションは import、import の別名、typealias、ネストしたクラス名のどの書き方でも、コンパイラが解決するクラスで判定する。`expect annotation class` と `actual typealias` の組も同じ 1 つのアノテーションとして集まる。
   - 例外として、**外側のクラスの親クラスにネストしたアノテーションを単純名で書いた場合**だけはプラグインが追えず、エラー（`ANNOTATION_MISREAD`）になる。`@Base.FromSuper` のように親クラス名から書けば集まる。
 - Java で宣言したアノテーションも集められる（同じモジュールの Java ソースでも、ライブラリのものでもよい）。アイテムになるのは Kotlin の宣言だけで、Java のクラスやメソッドに付けても集まらない。
