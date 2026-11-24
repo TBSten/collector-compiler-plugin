@@ -19,6 +19,9 @@ object CollectorErrors : KtDiagnosticsContainer() {
     /** `collectSingleOrNull()` found more than one item (arg: description of the count). */
     val COLLECT_SINGLE_OR_NULL_COUNT by error1<KtElement, String>()
 
+    /** `tag` of `@CollectorFor` that is not a string literal. */
+    val COLLECTOR_FOR_TAG_NOT_LITERAL by error0<KtElement>()
+
     /** `@CollectorFor` on something other than an object. */
     val COLLECTOR_FOR_NOT_OBJECT by error0<KtElement>()
 
@@ -41,6 +44,7 @@ object CollectorErrors : KtDiagnosticsContainer() {
 
     private object Renderers : BaseDiagnosticRendererFactory() {
         override val MAP by KtDiagnosticFactoryToRendererMap("Collector") { map ->
+            map.put(COLLECTOR_FOR_TAG_NOT_LITERAL, "The tag of @CollectorFor must be a string literal.")
             map.put(COLLECTOR_FOR_NOT_OBJECT, "@CollectorFor can only be used on an object.")
             map.put(COLLECTOR_FOR_NOT_COLLECTOR, "An object annotated with @CollectorFor must implement Collector<T>.")
             map.put(COLLECTOR_FOR_DUPLICATE, "@CollectorFor<{0}> is repeated on the same object.", CommonRenderers.STRING)

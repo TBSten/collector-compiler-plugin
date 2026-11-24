@@ -18,6 +18,7 @@ internal object CollectorNames {
 
     const val COLLECTOR_FOR_PREFIX = "collectorFor_"
     const val COLLECTOR_KEY_PREFIX = "collectorKey_"
+    const val COLLECTOR_TAG_PREFIX = "collectorTag_"
     const val ITEM_PREFIX = "item_"
     const val HOLDER_PREFIX = "Item_"
     const val AS_PREFIX = "as_"
@@ -38,13 +39,17 @@ internal object CollectorNames {
     fun collectorKeyHint(collector: ClassId): CallableId =
         CallableId(HINTS_PACKAGE, Name.identifier(COLLECTOR_KEY_PREFIX + HintNameEncoding.encode(collector.asFqNameString())))
 
+    /** `collectorTag_<enc(tag)>(c: C)`: one per Collector declared with `tag`. */
+    fun collectorTagHint(tag: String): CallableId =
+        CallableId(HINTS_PACKAGE, Name.identifier(COLLECTOR_TAG_PREFIX + HintNameEncoding.encode(tag)))
+
     fun itemHint(annotation: ClassId): CallableId =
         CallableId(HINTS_PACKAGE, Name.identifier(ITEM_PREFIX + HintNameEncoding.encode(annotation.asFqNameString())))
 
     // Hints are top-level functions of synthetic files. The file names end up as JVM facade classes and klib files,
     // so they are part of the hint format too.
 
-    /** The file of the `collectorFor_` hints of [collector]. */
+    /** The file of the `collectorFor_` and `collectorTag_` hints of [collector]. */
     fun collectorForHintFile(collector: ClassId): String = COLLECTOR_FOR_PREFIX + HintNameEncoding.encode(collector.asFqNameString())
 
     /** The file of the `collectorKey_` hints of [collector]. */

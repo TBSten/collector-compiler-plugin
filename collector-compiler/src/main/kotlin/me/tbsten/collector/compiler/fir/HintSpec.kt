@@ -19,6 +19,7 @@ internal class HintSpec(
  * - `collectorFor_<X>(a: X, c: C)` and `collectorKey_<C>(a: X)` for each own Collector C of X: downstream modules
  *   find the Collectors of an annotation, and the annotations of a Collector (type arguments of annotations are not
  *   kept in class files);
+ * - `collectorTag_<tag>(c: C)` for each own Collector C declared with a tag: calls by tag find the Collectors;
  * - `item_<X>(i: Item_…)` for each own item and each collected annotation X on it.
  */
 internal fun hintSpecs(collectors: List<CollectorDef>, items: OwnItems): Map<CallableId, List<HintSpec>> = buildList {
@@ -35,6 +36,15 @@ internal fun hintSpecs(collectors: List<CollectorDef>, items: OwnItems): Map<Cal
             HintSpec(
                 CollectorNames.collectorKeyHint(c.collector), CollectorNames.collectorKeyHintFile(c.collector),
                 listOf(CollectorNames.ANNOTATION_PARAMETER to c.annotation),
+            ),
+        )
+    }
+    for (c in collectors.distinctBy { it.tag to it.collector }) {
+        val tag = c.tag ?: continue
+        add(
+            HintSpec(
+                CollectorNames.collectorTagHint(tag), CollectorNames.collectorForHintFile(c.collector),
+                listOf(CollectorNames.COLLECTOR_PARAMETER to c.collector),
             ),
         )
     }

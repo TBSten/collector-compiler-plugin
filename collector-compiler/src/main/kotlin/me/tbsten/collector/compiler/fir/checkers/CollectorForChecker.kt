@@ -2,7 +2,9 @@ package me.tbsten.collector.compiler.fir.checkers
 
 import me.tbsten.collector.compiler.CollectorNames
 import me.tbsten.collector.compiler.fir.CollectorErrors
+import me.tbsten.collector.compiler.fir.collectorForTagArgument
 import me.tbsten.collector.compiler.fir.collectorForTarget
+import me.tbsten.collector.compiler.fir.stringLiteral
 import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
 import org.jetbrains.kotlin.diagnostics.reportOn
@@ -26,6 +28,13 @@ internal object CollectorForChecker : FirRegularClassChecker(MppCheckerKind.Comm
         }
         if (declaration.symbol.resolvedSuperTypes.none { it.classId == CollectorNames.COLLECTOR }) {
             reporter.reportOn(source, CollectorErrors.COLLECTOR_FOR_NOT_COLLECTOR)
+        }
+        for (annotation in annotations) {
+            val tag = annotation.collectorForTagArgument() ?: continue
+            if (tag.stringLiteral() == null) {
+                val tagSource = tag.source ?: annotation.source ?: continue
+                reporter.reportOn(tagSource, CollectorErrors.COLLECTOR_FOR_TAG_NOT_LITERAL)
+            }
         }
         val repeated = annotations.mapNotNull { it.collectorForTarget() }.groupBy { it }.filterValues { it.size > 1 }.keys
         for (x in repeated) reporter.reportOn(source, CollectorErrors.COLLECTOR_FOR_DUPLICATE, x.asFqNameString())
