@@ -1,6 +1,7 @@
 package me.tbsten.collector.compiler.ir
 
 import me.tbsten.collector.compiler.CollectorPluginKey
+import me.tbsten.collector.compiler.HintNameEncoding
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.backend.common.lower.DeclarationIrBuilder
 import org.jetbrains.kotlin.descriptors.DescriptorVisibilities
@@ -78,9 +79,8 @@ internal class ItemBridges(private val context: IrPluginContext) {
         target: IrDeclaration,
         body: IrBuilderWithScope.() -> IrExpression,
     ): IrSimpleFunction {
-        val level = if (container is IrFile) "file" else "member"
         val bridge = context.irFactory.buildFun {
-            name = Name.identifier("collector\$bridge\$" + level + "\$" + holderFn.name.asString() + "\$" + (target as IrDeclarationWithName).name.asString())
+            name = bridgeName(holderFn, container, target)
             origin = IrDeclarationOrigin.GeneratedByPlugin(CollectorPluginKey)
             visibility = DescriptorVisibilities.INTERNAL
             returnType = holderFn.returnType
@@ -95,5 +95,21 @@ internal class ItemBridges(private val context: IrPluginContext) {
         pending += container to bridge
         bridge.body = DeclarationIrBuilder(context, bridge.symbol).irBlockBody { +irReturn(body()) }
         return bridge
+    }
+
+    /**
+     * `collector$bridge$<declaration>$<hash>`. The hash stands for the holder member (a holder is one item, a member
+     * one Collector or annotation) and the level, which together make the name unique; spelling them out would make
+     * the classes nested in a bridge (the class of a suspend lambda) longer than a file name can be.
+     */
+    private fun bridgeName(holderFn: IrSimpleFunction, container: IrDeclarationContainer, target: IrDeclaration): Name {
+        val level = if (container is IrFile) "file" else "member"
+        val declaration = HintNameEncoding.bounded(HintNameEncoding.encode((target as IrDeclarationWithName).name.asString()), MAX_DECLARATION_NAME)
+        val hash = HintNameEncoding.hash("${holderFn.parentAsClass.name}/${holderFn.name}/$level")
+        return Name.identifier("collector\$bridge\$$declaration\$$hash")
+    }
+
+    private companion object {
+        const val MAX_DECLARATION_NAME = 60
     }
 }

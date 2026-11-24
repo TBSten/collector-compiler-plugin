@@ -40,7 +40,7 @@ internal object HintNameEncoding {
     private const val HASH_SUFFIX_LENGTH = 18
 
     /** 64-bit FNV-1a as 16 hex digits: stable across runs, platforms and compiler versions. */
-    private fun hash(value: String): String {
+    fun hash(value: String): String {
         var hash = -0x340d631b7bdddcdbL
         for (c in value) hash = (hash xor c.code.toLong()) * 0x100000001b3L
         return hash.toULong().toString(16).padStart(16, '0')
