@@ -82,10 +82,8 @@ class ImportStylePropertyTest {
     /** With a distractor the reference must follow Kotlin's resolution order (G7). */
     @Test
     fun pbt7_withDistractors() {
-        knownBug("G7/PBT-7: an explicit import or a same-package class loses to a star import") {
-            runBlocking {
-                checkAll(20, PropTestConfig(seed = 71), Arb.list(caseArb, 1..12)) { cases -> check(cases) }
-            }
+        runBlocking {
+            checkAll(20, PropTestConfig(seed = 71), Arb.list(caseArb, 1..12)) { cases -> check(cases) }
         }
     }
 }

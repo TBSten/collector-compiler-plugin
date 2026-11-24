@@ -60,11 +60,9 @@ class NamingTest {
             """,
             boxFile("Any_.collectAsList().map { it.toString() }"),
         ))
-        knownBug("G5: holder class file names grow past 255 bytes (IO_ERROR when writing the class file)") {
-            assertEquals(listOf("jp"), compiled.box())
-            val longest = compiled.outputDir.walk().filter { it.isFile }.maxOf { it.name.toByteArray().size }
-            assertTrue(longest <= 255, "a class file name is $longest bytes")
-        }
+        assertEquals(listOf("jp"), compiled.box())
+        val longest = compiled.outputDir.walk().filter { it.isFile }.maxOf { it.name.toByteArray().size }
+        assertTrue(longest <= 255, "a class file name is $longest bytes")
     }
 
     /** G6: names that need escaping compile and are collected. */
@@ -89,14 +87,14 @@ class NamingTest {
         val upstream = compile("up", files = arrayOf(defs, "Items.kt" to "package items\n@defs.E object A")).requireOk()
         val hints = upstream.outputDir.resolve("collector/hints").list().orEmpty().sorted()
         assertTrue(hints.isNotEmpty())
+        // reference the holder by its real name, whatever the naming scheme is
+        val holder = hints.single { it.startsWith("Item_") && it.endsWith(".class") && '$' !in it }.removeSuffix(".class")
         val user = compile("main", listOf(upstream), files = arrayOf("Use.kt" to """
-            fun use() = collector.hints.Item_items__A
+            fun use() = collector.hints.$holder
         """))
-        knownBug("G9: holder objects (collector.hints.Item_…) are public and can be referenced from user code") {
-            assertTrue(!user.ok, "a holder object could be referenced:\n${user.messages}")
-        }
+        assertTrue(!user.ok && user.messages.contains("DEPRECATION_ERROR"), "the holder $holder could be referenced:\n${user.messages}")
         val hintCall = compile("main", listOf(upstream), files = arrayOf("Use.kt" to """
-            fun use() = collector.hints.collectorFor_defs__E(TODO(), TODO())
+            fun use() = collector.hints.${hints.first { it.startsWith("CollectorFor_") || it.startsWith("collectorFor_") }.removeSuffix(".class").removeSuffix("Kt")}(TODO(), TODO())
         """))
         assertTrue(!hintCall.ok && hintCall.messages.contains("UNRESOLVED_REFERENCE"), hintCall.messages)
     }
