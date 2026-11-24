@@ -6,7 +6,9 @@ import me.tbsten.collector.compiler.CollectorPluginKey
 import me.tbsten.collector.compiler.selectClassConversion
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.backend.common.lower.DeclarationIrBuilder
+import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.descriptors.DescriptorVisibilities
+import org.jetbrains.kotlin.descriptors.Modality
 import org.jetbrains.kotlin.ir.builders.IrBuilderWithScope
 import org.jetbrains.kotlin.ir.builders.declarations.buildFun
 import org.jetbrains.kotlin.ir.builders.declarations.buildReceiverParameter
@@ -16,6 +18,7 @@ import org.jetbrains.kotlin.ir.builders.irGet
 import org.jetbrains.kotlin.ir.builders.irGetObject
 import org.jetbrains.kotlin.ir.builders.irReturn
 import org.jetbrains.kotlin.ir.declarations.IrClass
+import org.jetbrains.kotlin.ir.declarations.IrConstructor
 import org.jetbrains.kotlin.ir.declarations.IrDeclaration
 import org.jetbrains.kotlin.ir.declarations.IrDeclarationContainer
 import org.jetbrains.kotlin.ir.declarations.IrDeclarationOrigin
@@ -36,6 +39,8 @@ import org.jetbrains.kotlin.ir.types.IrTypeSystemContextImpl
 import org.jetbrains.kotlin.ir.types.classOrNull
 import org.jetbrains.kotlin.ir.types.defaultType
 import org.jetbrains.kotlin.ir.types.isSubtypeOf
+import org.jetbrains.kotlin.ir.types.typeOrFail
+import org.jetbrains.kotlin.ir.types.typeWith
 import org.jetbrains.kotlin.ir.util.constructors
 import org.jetbrains.kotlin.ir.util.defaultType
 import org.jetbrains.kotlin.ir.util.file
@@ -143,13 +148,15 @@ internal class ItemConversion(private val context: IrPluginContext) {
     private fun IrBuilderWithScope.convertClass(t: IrType, target: IrClass): IrExpression =
         when (val conversion = selectClassConversion(IrClassConversionFacts(target, t))) {
             ClassConversion.Rule.OBJECT_ITSELF -> irGetObject(target.symbol)
-            ClassConversion.Rule.CLASS_REFERENCE -> IrClassReferenceImpl(startOffset, endOffset, t, target.symbol, target.defaultType)
+            ClassConversion.Rule.CLASS_REFERENCE ->
+                IrClassReferenceImpl(startOffset, endOffset, classReferenceType(target), target.symbol, target.defaultType)
             ClassConversion.Rule.OBJECT_PROVIDER -> irLambda(t) { b, _ -> b.irGetObject(target.symbol) }
-            ClassConversion.Rule.NEW_INSTANCE -> irCall(target.constructors.first { c -> c.parameters.all { it.defaultValue != null } })
+            ClassConversion.Rule.NEW_INSTANCE -> irCall(constructorWithoutArguments(target)!!)
             ClassConversion.Rule.CONSTRUCTOR_REFERENCE -> {
-                val arity = (t as IrSimpleType).arguments.size - 1
-                val constructor = target.constructors.first { c ->
-                    c.parameters.size == arity && c.visibility != DescriptorVisibilities.PRIVATE
+                val parameterTypes = (t as IrSimpleType).arguments.dropLast(1).map { it.typeOrFail }
+                val constructor = callableConstructors(target).first { c ->
+                    c.parameters.size == parameterTypes.size &&
+                        c.parameters.zip(parameterTypes).all { (declared, given) -> given.isSubtypeOf(declared.type, typeSystem) }
                 }
                 irLambda(t) { b, params ->
                     b.irCall(constructor).apply { params.forEachIndexed { i, p -> arguments[i] = b.irGet(p) } }
@@ -158,17 +165,32 @@ internal class ItemConversion(private val context: IrPluginContext) {
             is ClassConversion.Rejection -> error("Collector: ${target.name} can not be collected ($conversion); FIR declares no as_ function for it")
         }
 
+    /** `KClass<Foo>`, the type of `Foo::class`. */
+    private fun classReferenceType(target: IrClass): IrType = context.irBuiltIns.kClassClass.typeWith(target.defaultType)
+
+    /** The constructors a holder can call, see [ClassConversionFacts]. */
+    private fun callableConstructors(target: IrClass): List<IrConstructor> =
+        target.constructors.filter { it.visibility == DescriptorVisibilities.PUBLIC || it.visibility == DescriptorVisibilities.INTERNAL }.toList()
+
+    /** The constructor `Foo()` calls: one without parameters if there is one, as overload resolution prefers it. */
+    private fun constructorWithoutArguments(target: IrClass): IrConstructor? {
+        val candidates = callableConstructors(target).filter { c -> c.parameters.all { it.defaultValue != null } }
+        return candidates.firstOrNull { it.parameters.isEmpty() } ?: candidates.firstOrNull()
+    }
+
     /**
-     * `as_<C>()` only exists when FIR found a rule that applies, so these facts just have to tell the rules apart:
-     * what FIR verified to choose between a rule and a rejection is taken as true.
+     * The same answers as `FirClassConversionFacts` gives, read from the IR declaration. `as_<C>()` only exists when
+     * FIR found a rule that applies, so the two facts that are each the last rule of their branch are taken as true.
      */
     private inner class IrClassConversionFacts(private val target: IrClass, private val t: IrType) : ClassConversionFacts {
         override val isObject: Boolean get() = target.isObject
         override val isSubtypeOfT: Boolean get() = target.defaultType.isSubtypeOf(t, typeSystem)
-        override val classReferenceFitsT: Boolean get() = t.classOrNull == context.irBuiltIns.kClassClass
+        override val classReferenceFitsT: Boolean get() = classReferenceType(target).isSubtypeOf(t, typeSystem)
         override val providerFitsT: Boolean get() = true
-        override val canBeInstantiated: Boolean get() = true
-        override val hasConstructorWithoutArguments: Boolean get() = true
+        override val canBeInstantiated: Boolean
+            get() = target.kind == ClassKind.CLASS && !target.isInner &&
+                target.modality != Modality.ABSTRACT && target.modality != Modality.SEALED
+        override val hasConstructorWithoutArguments: Boolean get() = constructorWithoutArguments(target) != null
         override val constructorFitsT: Boolean get() = true
     }
 

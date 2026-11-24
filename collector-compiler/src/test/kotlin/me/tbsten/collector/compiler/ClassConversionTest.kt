@@ -27,9 +27,18 @@ class ClassConversionTest {
 
     @Test
     fun classes() {
-        assertEquals(Rule.CLASS_REFERENCE, selectClassConversion(Facts(classReferenceFitsT = true, isSubtypeOfT = true, hasConstructorWithoutArguments = true)))
         assertEquals(Rule.NEW_INSTANCE, selectClassConversion(Facts(isSubtypeOfT = true, hasConstructorWithoutArguments = true, constructorFitsT = true)))
+        assertEquals(Rule.CLASS_REFERENCE, selectClassConversion(Facts(classReferenceFitsT = true)))
         assertEquals(Rule.CONSTRUCTOR_REFERENCE, selectClassConversion(Facts(constructorFitsT = true)))
+    }
+
+    /** T = Any takes an instance and a class reference alike: the instance wins when one can be made, as for objects. */
+    @Test
+    fun classesWhenSeveralRulesFitT() {
+        val any = Facts(isSubtypeOfT = true, classReferenceFitsT = true)
+        assertEquals(Rule.NEW_INSTANCE, selectClassConversion(Facts(isSubtypeOfT = true, classReferenceFitsT = true, hasConstructorWithoutArguments = true)))
+        assertEquals(Rule.CLASS_REFERENCE, selectClassConversion(any))
+        assertEquals(Rule.CLASS_REFERENCE, selectClassConversion(Facts(isSubtypeOfT = true, classReferenceFitsT = true, canBeInstantiated = false)))
     }
 
     @Test

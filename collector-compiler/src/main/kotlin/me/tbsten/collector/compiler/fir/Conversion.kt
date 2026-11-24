@@ -125,7 +125,8 @@ private class FirClassConversionFacts(
     // Constructors are read from the source declaration: this runs while holder members are generated.
     @OptIn(DirectDeclarationsAccess::class)
     private val constructors: List<FirConstructor> by lazy {
-        declaration.declarations.filterIsInstance<FirConstructor>().filter { it.visibility != Visibilities.Private }
+        declaration.declarations.filterIsInstance<FirConstructor>()
+            .filter { it.visibility == Visibilities.Public || it.visibility == Visibilities.Internal }
     }
 
     override val isObject: Boolean get() = declaration.classKind == ClassKind.OBJECT
