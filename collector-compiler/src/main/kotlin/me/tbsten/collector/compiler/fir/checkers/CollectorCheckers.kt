@@ -5,6 +5,7 @@ import org.jetbrains.kotlin.fir.analysis.checkers.declaration.DeclarationChecker
 import org.jetbrains.kotlin.fir.analysis.checkers.declaration.FirBasicDeclarationChecker
 import org.jetbrains.kotlin.fir.analysis.checkers.declaration.FirRegularClassChecker
 import org.jetbrains.kotlin.fir.analysis.checkers.expression.ExpressionCheckers
+import org.jetbrains.kotlin.fir.analysis.checkers.expression.FirCallableReferenceAccessChecker
 import org.jetbrains.kotlin.fir.analysis.checkers.expression.FirFunctionCallChecker
 import org.jetbrains.kotlin.fir.analysis.extensions.FirAdditionalCheckersExtension
 
@@ -17,5 +18,6 @@ class CollectorCheckers(session: FirSession) : FirAdditionalCheckersExtension(se
     override val expressionCheckers: ExpressionCheckers = object : ExpressionCheckers() {
         override val functionCallCheckers: Set<FirFunctionCallChecker> =
             setOf(CollectCallChecker, CollectLookupRecorder, CollectResultChecker)
+        override val callableReferenceAccessCheckers: Set<FirCallableReferenceAccessChecker> = setOf(CollectReferenceChecker)
     }
 }

@@ -8,6 +8,7 @@ import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
 import org.jetbrains.kotlin.ir.util.constructors
 import org.jetbrains.kotlin.ir.util.isVararg
 import org.jetbrains.kotlin.name.CallableId
+import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.name.Name
 
@@ -33,6 +34,10 @@ internal class CollectorSymbols(context: IrPluginContext) {
         finder.findClass(CollectorNames.COLLECTOR_INTERNALS) ?: notFound(CollectorNames.COLLECTOR_INTERNALS.asFqNameString())
     }
     val sequenceOfFactories: IrSimpleFunctionSymbol by lazy { internalsFunction("sequenceOfFactories") }
+    val withAnnotations: IrSimpleFunctionSymbol by lazy { internalsFunction("withAnnotations") }
+    val uniqueMapOf: IrSimpleFunctionSymbol by lazy { internalsFunction("uniqueMapOf") }
+
+    val pair: IrClassSymbol by lazy { finder.findClass(PAIR) ?: notFound(PAIR.asFqNameString()) }
 
     /** The overload of [pkg].[name] with a single vararg parameter. */
     private fun varargFunction(pkg: String, name: String): IrSimpleFunctionSymbol =
@@ -46,4 +51,8 @@ internal class CollectorSymbols(context: IrPluginContext) {
 
     private fun notFound(fqName: String): Nothing =
         error("Collector: $fqName not found; the collector-runtime on the classpath must match the compiler plugin")
+
+    private companion object {
+        val PAIR = ClassId(FqName("kotlin"), Name.identifier("Pair"))
+    }
 }

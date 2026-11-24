@@ -25,11 +25,16 @@ internal data class CollectorDef(
     val collector: ClassId,
     val annotation: ClassId,
     val symbol: FirClassSymbol<*>,
+    /** `tag` of `@CollectorFor`; only known (and only needed) for this module's own Collectors. */
+    val tag: String? = null,
 ) {
     /** T of `Collector<T>`. Only call after the SUPERTYPES phase. */
-    val elementType: ConeKotlinType?
-        get() = symbol.resolvedSuperTypes.firstOrNull { it.classId == CollectorNames.COLLECTOR }?.typeArguments?.firstOrNull()?.type
+    val elementType: ConeKotlinType? get() = symbol.collectorElementType()
 }
+
+/** T of the `Collector<T>` this class implements, or null when it does not. Only call after the SUPERTYPES phase. */
+internal fun FirClassSymbol<*>.collectorElementType(): ConeKotlinType? =
+    resolvedSuperTypes.firstOrNull { it.classId == CollectorNames.COLLECTOR }?.typeArguments?.firstOrNull()?.type
 
 /** The Collectors visible from this module: its own `@CollectorFor` objects and the `collectorFor_` hints on the classpath. */
 class CollectorIndex(session: FirSession) : FirExtensionSessionComponent(session) {
@@ -50,7 +55,7 @@ class CollectorIndex(session: FirSession) : FirExtensionSessionComponent(session
                     .mapNotNull { ann ->
                         val x = ann.collectorForTarget()
                         debugLog { "own @CollectorFor on ${cls.classId} -> X=$x" }
-                        x?.let { CollectorDef(cls.classId, it, cls) }
+                        x?.let { CollectorDef(cls.classId, it, cls, ann.collectorForTag()) }
                     }
             }
             .distinct()

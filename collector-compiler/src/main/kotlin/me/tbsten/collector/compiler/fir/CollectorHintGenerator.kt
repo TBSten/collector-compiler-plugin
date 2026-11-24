@@ -6,6 +6,7 @@ import me.tbsten.collector.compiler.debugLog
 import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.declarations.FirDeclarationOrigin
+import org.jetbrains.kotlin.fir.expressions.builder.buildAnnotationCopy
 import org.jetbrains.kotlin.fir.extensions.ExperimentalTopLevelDeclarationsGenerationApi
 import org.jetbrains.kotlin.fir.extensions.FirDeclarationGenerationExtension
 import org.jetbrains.kotlin.fir.extensions.MemberGenerationContext
@@ -17,12 +18,15 @@ import org.jetbrains.kotlin.fir.symbols.impl.FirClassLikeSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirClassSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirConstructorSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirNamedFunctionSymbol
+import org.jetbrains.kotlin.fir.types.classId
+import org.jetbrains.kotlin.fir.types.coneTypeOrNull
 import org.jetbrains.kotlin.fir.types.constructClassLikeType
 import org.jetbrains.kotlin.name.CallableId
 import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.name.SpecialNames
+import org.jetbrains.kotlin.name.StandardClassIds
 
 /**
  * Declares the hints and the holder objects of this module in `collector.hints`. Only signatures are generated here;
@@ -67,6 +71,7 @@ class CollectorHintGenerator(session: FirSession) : FirDeclarationGenerationExte
         return buildSet {
             add(SpecialNames.INIT)
             convertibleCollectors(item).forEach { add(CollectorNames.asFunction(it.collector)) }
+            item.annotations.forEach { add(CollectorNames.annotationsFunction(it)) }
         }
     }
 
@@ -78,15 +83,35 @@ class CollectorHintGenerator(session: FirSession) : FirDeclarationGenerationExte
     override fun generateFunctions(callableId: CallableId, context: MemberGenerationContext?): List<FirNamedFunctionSymbol> =
         if (context != null) generateHolderMembers(callableId, context.owner) else generateHints(callableId)
 
-    /** `as_<enc(C)>(): T` on a holder, for each Collector C the item converts for. */
+    /**
+     * The members of a holder: `annotations_<enc(X)>(): List<X>` for each collected annotation X on the item, and
+     * `as_<enc(C)>(): T` for each Collector C the item converts for.
+     */
     private fun generateHolderMembers(callableId: CallableId, owner: FirClassSymbol<*>): List<FirNamedFunctionSymbol> {
         val item = itemOf(owner) ?: return emptyList()
+        item.annotations.firstOrNull { CollectorNames.annotationsFunction(it) == callableId.callableName }?.let { x ->
+            return listOf(annotationsFunction(owner, item, x))
+        }
         return convertibleCollectors(item)
             .filter { CollectorNames.asFunction(it.collector) == callableId.callableName }
             .mapNotNull { c ->
                 val type = c.elementType ?: return@mapNotNull null
                 createMemberFunction(owner, CollectorPluginKey, callableId.callableName, type).symbol
             }
+    }
+
+    /**
+     * The body (IR) lists the X annotations of the item; the same annotations are copied onto the function so call
+     * sites can compare their arguments (collectAsMap keys).
+     */
+    private fun annotationsFunction(owner: FirClassSymbol<*>, item: ItemDef, x: ClassId): FirNamedFunctionSymbol {
+        val type = StandardClassIds.List.constructClassLikeType(arrayOf(x.constructClassLikeType()))
+        val function = createMemberFunction(owner, CollectorPluginKey, CollectorNames.annotationsFunction(x), type)
+        val copies = item.declaration.annotations
+            .filter { it.annotationTypeRef.coneTypeOrNull?.classId == x }
+            .map { buildAnnotationCopy(it) { useSiteTarget = null } }
+        function.replaceAnnotations(copies)
+        return function.symbol
     }
 
     private fun generateHints(callableId: CallableId): List<FirNamedFunctionSymbol> {

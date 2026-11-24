@@ -6,15 +6,21 @@ import org.jetbrains.kotlin.fir.caches.FirCache
 import org.jetbrains.kotlin.fir.caches.createCache
 import org.jetbrains.kotlin.fir.caches.firCachesFactory
 import org.jetbrains.kotlin.fir.caches.getValue
+import org.jetbrains.kotlin.fir.expressions.FirAnnotation
 import org.jetbrains.kotlin.fir.extensions.FirExtensionSessionComponent
 import org.jetbrains.kotlin.fir.resolve.providers.symbolProvider
+import org.jetbrains.kotlin.fir.resolve.toRegularClassSymbol
 import org.jetbrains.kotlin.fir.scopes.getFunctions
 import org.jetbrains.kotlin.fir.scopes.impl.declaredMemberScope
 import org.jetbrains.kotlin.fir.symbols.impl.FirNamedFunctionSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
 import org.jetbrains.kotlin.fir.types.classId
+import org.jetbrains.kotlin.fir.types.coneTypeOrNull
 import org.jetbrains.kotlin.name.CallableId
 import org.jetbrains.kotlin.name.ClassId
+
+/** An item as a call site sees it, with the X annotations copied onto its holder (for collectAsMap keys). */
+internal class VisibleItem(val fqName: String, val annotations: List<FirAnnotation>)
 
 /**
  * Reads hints the way a call site sees them: those of this module and of everything on its classpath.
@@ -37,19 +43,36 @@ class CollectorHints(session: FirSession) : FirExtensionSessionComponent(session
     /** Annotations X the collector [collector] collects, read from its `collectorKey_` hints. */
     internal fun annotationsOf(collector: ClassId): List<ClassId> = annotationsByCollector.getValue(collector)
 
-    /** FQNs of the items the call site sees for [collector], with the same rules as the IR rewrite. */
-    internal fun itemsOf(collector: ClassId): List<String> {
-        val asName = CollectorNames.asFunction(collector)
-        return annotationsOf(collector)
-            .flatMap { x -> hints(CollectorNames.itemHint(x)) }
-            .mapNotNull { it.parameterClassId(0) }
-            .distinct()
-            .filter { holderId ->
-                val holder = session.symbolProvider.getClassLikeSymbolByClassId(holderId) as? FirRegularClassSymbol ?: return@filter false
-                session.declaredMemberScope(holder, null).getFunctions(asName).isNotEmpty()
+    /** The Collectors declared with [tag], read from the `collectorTag_` hints. */
+    internal fun collectorsWithTag(tag: String): List<FirRegularClassSymbol> =
+        hints(CollectorNames.collectorTagHint(tag))
+            .mapNotNull { it.valueParameterSymbols.firstOrNull()?.resolvedReturnType?.toRegularClassSymbol(session) }
+            .distinctBy { it.classId }
+
+    /**
+     * The items the call site sees for [collectors], sorted by FQN, with the same rules as the IR rewrite: one per
+     * holder, and only holders that convert for the Collector.
+     */
+    internal fun itemsOf(collectors: List<ClassId>): List<VisibleItem> {
+        val result = linkedMapOf<ClassId, VisibleItem>()
+        for (collector in collectors) {
+            val asName = CollectorNames.asFunction(collector)
+            val xs = annotationsOf(collector)
+            val holders = xs.flatMap { x -> hints(CollectorNames.itemHint(x)).mapNotNull { it.parameterClassId(0) } }.distinct()
+            for (holderId in holders) {
+                if (holderId in result) continue
+                val holder = session.symbolProvider.getClassLikeSymbolByClassId(holderId) as? FirRegularClassSymbol ?: continue
+                val scope = session.declaredMemberScope(holder, null)
+                if (scope.getFunctions(asName).isEmpty()) continue
+                val annotations = xs.flatMap { x ->
+                    scope.getFunctions(CollectorNames.annotationsFunction(x)).flatMap { fn ->
+                        fn.resolvedAnnotationsWithArguments.filter { it.annotationTypeRef.coneTypeOrNull?.classId == x }
+                    }
+                }
+                result[holderId] = VisibleItem(CollectorNames.decodeHolder(holderId), annotations)
             }
-            .map { CollectorNames.decodeHolder(it) }
-            .sorted()
+        }
+        return result.values.sortedBy { it.fqName }
     }
 }
 

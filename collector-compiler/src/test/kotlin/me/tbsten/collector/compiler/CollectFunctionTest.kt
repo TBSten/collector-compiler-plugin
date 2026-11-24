@@ -9,13 +9,14 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
 class CollectFunctionTest {
-    /** The placeholders declared in collector-runtime (Collect.kt). */
+    /** The placeholders declared in collector-runtime (Collect.kt, CollectByTag.kt, CollectWithAnnotation.kt). */
     @Test
     fun namesMatchTheRuntime() {
         assertEquals(
             setOf(
                 "collectAsList", "collectAsSet", "collectAsSequence", "collectAsArray", "collectSingle", "collectSingleOrNull",
                 "lazyCollectAsList", "lazyCollectAsSet", "lazyCollectAsSequence", "lazyCollectAsArray", "lazyCollectSingle", "lazyCollectSingleOrNull",
+                "collectWithAnnotation", "collectAsMap", "lazyCollectWithAnnotation", "lazyCollectAsMap",
             ),
             CollectFunction.ALL.mapTo(mutableSetOf()) { it.name },
         )

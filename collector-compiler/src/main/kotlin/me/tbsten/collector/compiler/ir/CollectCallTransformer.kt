@@ -2,24 +2,32 @@ package me.tbsten.collector.compiler.ir
 
 import me.tbsten.collector.compiler.CollectFunction
 import me.tbsten.collector.compiler.CollectKind
+import me.tbsten.collector.compiler.CollectorNames
 import me.tbsten.collector.compiler.debugLog
 import org.jetbrains.kotlin.backend.common.IrElementTransformerVoidWithContext
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.backend.common.lower.DeclarationIrBuilder
 import org.jetbrains.kotlin.ir.builders.IrBuilderWithScope
 import org.jetbrains.kotlin.ir.builders.irCall
+import org.jetbrains.kotlin.ir.builders.irCallConstructor
 import org.jetbrains.kotlin.ir.builders.irGetObject
 import org.jetbrains.kotlin.ir.builders.irNull
 import org.jetbrains.kotlin.ir.builders.irVararg
+import org.jetbrains.kotlin.ir.declarations.IrParameterKind
 import org.jetbrains.kotlin.ir.declarations.name
 import org.jetbrains.kotlin.ir.expressions.IrCall
+import org.jetbrains.kotlin.ir.expressions.IrConst
 import org.jetbrains.kotlin.ir.expressions.IrExpression
-import org.jetbrains.kotlin.ir.expressions.IrGetObjectValue
+import org.jetbrains.kotlin.ir.expressions.IrGetField
 import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
 import org.jetbrains.kotlin.ir.types.IrSimpleType
 import org.jetbrains.kotlin.ir.types.IrType
+import org.jetbrains.kotlin.ir.types.classOrNull
 import org.jetbrains.kotlin.ir.types.typeOrFail
 import org.jetbrains.kotlin.ir.types.typeWith
+import org.jetbrains.kotlin.ir.util.functions
+import org.jetbrains.kotlin.ir.util.isObject
+import org.jetbrains.kotlin.ir.util.primaryConstructor
 import org.jetbrains.kotlin.ir.visitors.transformChildrenVoid
 
 /**
@@ -33,45 +41,95 @@ internal class CollectCallTransformer(
 ) : IrElementTransformerVoidWithContext() {
     override fun visitCall(expression: IrCall): IrExpression {
         expression.transformChildrenVoid(this)
-        val function = CollectFunction.of(expression.symbol.owner.callableIdOrNull()) ?: return expression
-        val receiver = expression.arguments[0] as? IrGetObjectValue
-            ?: error("Collector: the receiver of ${function.name}() must be a @CollectorFor object (checked on the FIR side)")
-        val collector = receiver.symbol.owner
-        val elementType = expression.typeArguments[0] ?: error("Collector: no type argument on ${function.name}()")
-        val entries = discovery.entriesFor(collector)
-        debugLog { "call site ${currentFile.name}: ${function.name} on ${collector.name} -> ${entries.size} item(s)" }
+        val callee = expression.symbol.owner
+        val function = CollectFunction.of(callee.callableIdOrNull()) ?: return expression
+        val byTag = callee.parameters.firstOrNull()?.kind == IrParameterKind.Regular
+        val entries = if (byTag) {
+            val tag = constantString(expression.arguments[0])
+                ?: error("Collector: the tag of ${function.name}() must be a constant (checked on the FIR side)")
+            discovery.entriesForTag(tag)
+        } else {
+            // `XCollector.f()` or the implicit receiver of `with(XCollector) { f() }`: the object type decides
+            val collector = expression.arguments[0]?.type?.classOrNull?.owner?.takeIf { it.isObject }
+                ?: error("Collector: the receiver of ${function.name}() must be a @CollectorFor object (checked on the FIR side)")
+            discovery.entriesFor(collector)
+        }
+        debugLog { "call site ${currentFile.name}: ${function.name} -> ${entries.map { it.fqName }}" }
 
         val builder = DeclarationIrBuilder(context, currentScope!!.scope.scopeOwnerSymbol, expression.startOffset, expression.endOffset)
-        if (!function.lazy) return build(builder, function.kind, elementType, expression.type, entries)
+        val typeArguments = expression.typeArguments.map { it ?: error("Collector: no type argument on ${function.name}()") }
+        if (!function.lazy) return build(builder, function.kind, typeArguments, expression.type, entries)
         val valueType = (expression.type as IrSimpleType).arguments.first().typeOrFail
-        return lazyOf(builder, valueType, expression.type) { build(it, function.kind, elementType, valueType, entries) }
+        return lazyOf(builder, valueType, expression.type) { build(it, function.kind, typeArguments, valueType, entries) }
+    }
+
+    /** A `const val` or literal string argument. */
+    private fun constantString(expression: IrExpression?): String? = when (expression) {
+        is IrConst -> expression.value as? String
+        is IrCall -> {
+            val property = expression.symbol.owner.correspondingPropertySymbol?.owner
+            if (property?.isConst == true) constantString(property.backingField?.initializer?.expression) else null
+        }
+        is IrGetField -> constantString(expression.symbol.owner.initializer?.expression)
+        else -> null
     }
 
     /** `Item_x.as_C()` */
     private fun value(b: IrBuilderWithScope, entry: CollectedEntry): IrExpression =
         b.irCall(entry.asFunction).apply { arguments[0] = b.irGetObject(entry.holder) }
 
+    /** [typeArguments] are those of the call: `<T>`, or `<A, T>` for the kinds with annotations. */
     private fun build(
         b: IrBuilderWithScope,
         kind: CollectKind,
-        elementType: IrType,
+        typeArguments: List<IrType>,
         resultType: IrType,
         entries: List<CollectedEntry>,
-    ): IrExpression = when (kind) {
-        CollectKind.AS_LIST -> varargCall(b, symbols.listOf, elementType, resultType, entries.map { value(b, it) })
-        CollectKind.AS_SET -> varargCall(b, symbols.setOf, elementType, resultType, entries.map { value(b, it) })
-        CollectKind.AS_ARRAY -> varargCall(b, symbols.arrayOf, elementType, resultType, entries.map { value(b, it) })
-        CollectKind.AS_SEQUENCE -> {
-            val factoryType = context.irBuiltIns.functionN(0).typeWith(elementType)
-            b.irCall(symbols.sequenceOfFactories, resultType, typeArguments = listOf(elementType)).apply {
-                arguments[0] = b.irGetObject(symbols.internals)
-                arguments[1] = b.irVararg(factoryType, entries.map { e -> b.irLambda(factoryType) { lambda, _ -> value(lambda, e) } })
+    ): IrExpression {
+        val elementType = typeArguments.last()
+        return when (kind) {
+            CollectKind.AS_LIST -> varargCall(b, symbols.listOf, elementType, resultType, entries.map { value(b, it) })
+            CollectKind.AS_SET -> varargCall(b, symbols.setOf, elementType, resultType, entries.map { value(b, it) })
+            CollectKind.AS_ARRAY -> varargCall(b, symbols.arrayOf, elementType, resultType, entries.map { value(b, it) })
+            CollectKind.AS_SEQUENCE -> {
+                val factoryType = context.irBuiltIns.functionN(0).typeWith(elementType)
+                val factories = entries.map { e -> b.irLambda(factoryType) { lambda, _ -> value(lambda, e) } }
+                internalsCall(b, symbols.sequenceOfFactories, resultType, listOf(elementType), b.irVararg(factoryType, factories))
+            }
+            // the count is checked on the FIR side
+            CollectKind.SINGLE -> entries.singleOrNull()?.let { value(b, it) } ?: error("Collector: collectSingle() needs exactly one item")
+            CollectKind.SINGLE_OR_NULL -> entries.singleOrNull()?.let { value(b, it) } ?: b.irNull(resultType)
+            CollectKind.WITH_ANNOTATION -> withAnnotations(b, typeArguments, entries)
+            CollectKind.AS_MAP -> internalsCall(b, symbols.uniqueMapOf, resultType, typeArguments, withAnnotations(b, typeArguments, entries))
+        }
+    }
+
+    /** `withAnnotations(h1.annotations_X() to h1.as_C(), …)`: one pair per annotation of each item. */
+    private fun withAnnotations(b: IrBuilderWithScope, typeArguments: List<IrType>, entries: List<CollectedEntry>): IrExpression {
+        val (a, t) = typeArguments
+        val listOfA = context.irBuiltIns.listClass.typeWith(a)
+        val pairType = symbols.pair.typeWith(listOfA, t)
+        val pairs = entries.flatMap { e ->
+            e.annotations.mapNotNull { x ->
+                val annotationsFn = e.holder.owner.functions.firstOrNull { it.name == CollectorNames.annotationsFunction(x) } ?: return@mapNotNull null
+                b.irCallConstructor(symbols.pair.owner.primaryConstructor!!.symbol, listOf(listOfA, t)).apply {
+                    arguments[0] = b.irCall(annotationsFn.symbol).apply { arguments[0] = b.irGetObject(e.holder) }
+                    arguments[1] = value(b, e)
+                }
             }
         }
-        // the count is checked on the FIR side
-        CollectKind.SINGLE -> entries.singleOrNull()?.let { value(b, it) } ?: error("Collector: collectSingle() needs exactly one item")
-        CollectKind.SINGLE_OR_NULL -> entries.singleOrNull()?.let { value(b, it) } ?: b.irNull(resultType)
+        val resultType = context.irBuiltIns.listClass.typeWith(symbols.pair.typeWith(a, t))
+        return internalsCall(b, symbols.withAnnotations, resultType, typeArguments, b.irVararg(pairType, pairs))
     }
+
+    /** `CollectorInternals.<function>(<argument>)` */
+    private fun internalsCall(
+        b: IrBuilderWithScope, function: IrSimpleFunctionSymbol, resultType: IrType, typeArguments: List<IrType>, argument: IrExpression,
+    ): IrExpression =
+        b.irCall(function, resultType, typeArguments = typeArguments).apply {
+            arguments[0] = b.irGetObject(symbols.internals)
+            arguments[1] = argument
+        }
 
     private fun varargCall(
         b: IrBuilderWithScope, function: IrSimpleFunctionSymbol, elementType: IrType, resultType: IrType, values: List<IrExpression>,

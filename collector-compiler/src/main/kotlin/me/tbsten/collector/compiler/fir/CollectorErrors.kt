@@ -19,6 +19,24 @@ object CollectorErrors : KtDiagnosticsContainer() {
     /** `collectSingleOrNull()` found more than one item (arg: description of the count). */
     val COLLECT_SINGLE_OR_NULL_COUNT by error1<KtElement, String>()
 
+    /** `collect*(tag = …)` with a tag that is not a compile-time constant. */
+    val COLLECT_TAG_NOT_CONSTANT by error0<KtElement>()
+
+    /** A Collector with the tag whose T is not a subtype of the requested T (arg: those Collectors). */
+    val COLLECT_TAG_TYPE_MISMATCH by error1<KtElement, String>()
+
+    /** `collectWithAnnotation<A, T>()` where some collected annotation is not an A (arg: those annotations). */
+    val COLLECT_ANNOTATION_TYPE_MISMATCH by error1<KtElement, String>()
+
+    /** `collectAsMap()` where two items have equal annotations (arg: the key and the items). */
+    val COLLECT_AS_MAP_DUPLICATE_KEY by error1<KtElement, String>()
+
+    /** A callable reference such as `XCollector::collectAsList`. */
+    val COLLECT_CALLABLE_REFERENCE by error0<KtElement>()
+
+    /** `tag` of `@CollectorFor` that is not a string literal. */
+    val COLLECTOR_FOR_TAG_NOT_LITERAL by error0<KtElement>()
+
     /** `@CollectorFor` on something other than an object. */
     val COLLECTOR_FOR_NOT_OBJECT by error0<KtElement>()
 
@@ -41,6 +59,23 @@ object CollectorErrors : KtDiagnosticsContainer() {
 
     private object Renderers : BaseDiagnosticRendererFactory() {
         override val MAP by KtDiagnosticFactoryToRendererMap("Collector") { map ->
+            map.put(COLLECT_TAG_NOT_CONSTANT, "The tag must be a compile-time constant (a string literal or a const val).")
+            map.put(
+                COLLECT_TAG_TYPE_MISMATCH,
+                "Every Collector with this tag must collect a subtype of the requested type, but these do not: {0}.",
+                CommonRenderers.STRING,
+            )
+            map.put(
+                COLLECT_ANNOTATION_TYPE_MISMATCH,
+                "The annotation type argument must be a supertype of every collected annotation, but these are not: {0}.",
+                CommonRenderers.STRING,
+            )
+            map.put(COLLECT_AS_MAP_DUPLICATE_KEY, "collectAsMap() would have the same key twice: {0}.", CommonRenderers.STRING)
+            map.put(
+                COLLECT_CALLABLE_REFERENCE,
+                "Collect functions can not be referenced; call them directly (the call is replaced at compile time).",
+            )
+            map.put(COLLECTOR_FOR_TAG_NOT_LITERAL, "The tag of @CollectorFor must be a string literal.")
             map.put(COLLECTOR_FOR_NOT_OBJECT, "@CollectorFor can only be used on an object.")
             map.put(COLLECTOR_FOR_NOT_COLLECTOR, "An object annotated with @CollectorFor must implement Collector<T>.")
             map.put(COLLECTOR_FOR_DUPLICATE, "@CollectorFor<{0}> is repeated on the same object.", CommonRenderers.STRING)

@@ -11,4 +11,18 @@ public object CollectorInternals {
     /** A sequence that calls each factory only when it reaches that element. */
     public fun <T> sequenceOfFactories(vararg factories: () -> T): Sequence<T> =
         factories.asSequence().map { it() }
+
+    /** One pair per annotation of each item: `[(annotations, item), …]` → `[(a1, item), (a2, item), …]`. */
+    public fun <A, T> withAnnotations(vararg items: Pair<List<A>, T>): List<Pair<A, T>> =
+        items.flatMap { (annotations, item) -> annotations.map { it to item } }
+
+    /** A map of [pairs] that fails on a duplicated key instead of keeping the last value. */
+    public fun <K, V> uniqueMapOf(pairs: List<Pair<K, V>>): Map<K, V> {
+        val map = LinkedHashMap<K, V>(pairs.size)
+        for ((key, value) in pairs) {
+            check(key !in map) { "Collector: two collected items have the same annotation $key" }
+            map[key] = value
+        }
+        return map
+    }
 }
