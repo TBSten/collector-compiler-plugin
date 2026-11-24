@@ -33,19 +33,15 @@ class GapsTest {
             import defs.Entry
             class b { @Entry object C { override fun toString() = "package a, b.C" } }
         """)).requireOk()
-        val result = runCatching {
-            box(
-                "Box.kt" to """
-                    import defs.*
-                    import me.tbsten.collector.*
-                    fun box() = EntryCollector.collectAsList().map { it.toString() }.sorted()
-                """,
-                deps = listOf(pkg, nested),
-            )
-        }
-        knownBug("G2: holder names come from the FQN string, which loses the package/class boundary") {
-            assertEquals(listOf("package a, b.C", "package a.b, object C"), result.getOrThrow())
-        }
+        val result = box(
+            "Box.kt" to """
+                import defs.*
+                import me.tbsten.collector.*
+                fun box() = EntryCollector.collectAsList().map { it.toString() }.sorted()
+            """,
+            deps = listOf(pkg, nested),
+        )
+        assertEquals(listOf("package a, b.C", "package a.b, object C"), result)
     }
 
     /** E2: a callable reference to a collect function can't be replaced and must not compile. */
@@ -147,9 +143,7 @@ class GapsTest {
             """,
             deps = listOf(upstream),
         )
-        knownBug("G7: annotation references are matched by guessing FQNs from imports, so an explicit import or a same-package class loses to a star import") {
-            assertEquals(listOf("ByAlias", "ByStar", "ByFqName"), result)
-        }
+        assertEquals(listOf("ByAlias", "ByStar", "ByFqName"), result)
     }
 
     /** C7: an annotation from kotlin.* (default import) can be X. */
@@ -193,8 +187,6 @@ class GapsTest {
                 """,
             )
         }
-        knownBug("N1: every item is passed to one listOf(...) call in the calling method") {
-            assertEquals(listOf(n, n, n), result.getOrThrow())
-        }
+        assertEquals(listOf(n, n, n), result.getOrThrow())
     }
 }
