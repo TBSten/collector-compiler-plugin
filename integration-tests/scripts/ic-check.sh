@@ -63,6 +63,58 @@ class ExtraTest {
 K
 expect_pass "Collector added upstream sees items of already-compiled modules"
 
+# tags: a call by tag must see items and Collectors added upstream
+# (only ExtraTest runs here, because TagAndAnnotationTest lists the plugins of the baseline)
+tag_test() { # <expected count>
+    cat > "$TEST_FILE" <<K
+import defs.Plugin
+import me.tbsten.collector.collectAsList
+import kotlin.test.Test
+import kotlin.test.assertEquals
+
+class ExtraTest {
+    @Test
+    fun pluginsByTag() {
+        assertEquals($1, collectAsList<Plugin>("plugins").size)
+    }
+}
+K
+}
+cleanup
+cat > "$ITEM_FILE" <<'K'
+package items2
+
+import defs.Plugin
+import defs.PluginA
+
+@PluginA
+object Gamma : Plugin { override val id = "gamma" }
+K
+tag_test 4
+expect_pass "item added upstream is collected by a tag call" --tests ExtraTest
+
+cat > "$COLLECTOR_FILE" <<'K'
+package defs
+
+import me.tbsten.collector.Collector
+import me.tbsten.collector.CollectorFor
+
+annotation class PluginC
+
+@CollectorFor<PluginC>(tag = "plugins")
+object PluginCCollector : Collector<Plugin>
+K
+cat > "$ITEM_FILE" <<'K'
+package items2
+
+import defs.Plugin
+import defs.PluginC
+
+@PluginC
+object Gamma : Plugin { override val id = "gamma" }
+K
+expect_pass "Collector added upstream with an existing tag joins the tag call" --tests ExtraTest
+
 cleanup
 expect_pass "back to baseline"
 exit $FAILED
