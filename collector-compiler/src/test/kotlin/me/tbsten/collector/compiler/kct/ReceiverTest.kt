@@ -31,9 +31,7 @@ class ReceiverTest {
         val safeCall = runCatching {
             box(defs, items, boxFile("@Suppress(\"UNNECESSARY_SAFE_CALL\") defs.C?.collectAsList()"))
         }
-        knownBug("E4: a safe call on the object (C?.collectAsList()) is RECEIVER_NOT_COLLECTOR_OBJECT") {
-            assertEquals(listOf("a"), safeCall.getOrThrow())
-        }
+        assertEquals(listOf("a"), safeCall.getOrThrow())
         undecided("E4 typealias receiver (plan: same result; not in the spec)") {
             assertEquals(listOf("a"), box(defs, items, "Alias.kt" to "typealias TC = defs.C", boxFile("TC.collectAsList()")))
         }

@@ -126,9 +126,7 @@ class CollectorDefinitionTest {
         assertEquals(listOf(listOf("x"), listOf("x"), emptyList()), result)
         // `Host` alone is how a companion is usually referenced
         val viaClassName = runCatching { box(boxFile("Host.collectAsList()"), deps = listOf(items)) }
-        knownBug("C5: a companion Collector referenced by its class name (Host.collectAsList()) is RECEIVER_NOT_COLLECTOR_OBJECT") {
-            assertEquals(listOf("x"), viaClassName.getOrThrow())
-        }
+        assertEquals(listOf("x"), viaClassName.getOrThrow())
     }
 
     /** C7 (Java annotation, SOURCE retention, nested annotation class) — the kotlin.* case is in GapsTest. */
