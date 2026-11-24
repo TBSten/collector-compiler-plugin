@@ -11,3 +11,6 @@ annotation class Preview(val name: String = "")
 @Preview(name = "light")
 @Preview(name = "dark")
 annotation class ThemePreviews
+
+/** Only collected by a Collector the modules using it can not see (errors/warnings): those uses are missed. */
+annotation class Unseen

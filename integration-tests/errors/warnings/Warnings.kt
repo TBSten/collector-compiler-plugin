@@ -4,6 +4,7 @@ import defs.Conv
 import defs.Shape
 import me.tbsten.collector.Collector
 import me.tbsten.collector.CollectorFor
+import me.tbsten.collector.collectAsList
 
 @Conv val number: Int = 1 // W: ITEM_NOT_CONVERTIBLE
 
@@ -13,3 +14,10 @@ import me.tbsten.collector.CollectorFor
 enum class EntryForKClass { @defs.EnumKind ENTRY } // W: ITEM_NOT_CONVERTIBLE
 
 @defs.Palette enum class EnumForInstance : defs.Tinted { ; override val hex get() = "" } // W: ITEM_NOT_CONVERTIBLE
+
+// spec P11: items2 uses @Unseen but could not see this Collector when it was compiled
+@CollectorFor<ext.Unseen>() object UnseenCollector : Collector<Any>
+
+fun missed() {
+    UnseenCollector.collectAsList() // W: COLLECT_MISSED_ITEMS
+}
