@@ -49,6 +49,16 @@ class CollectorHints(session: FirSession) : FirExtensionSessionComponent(session
             .mapNotNull { it.valueParameterSymbols.firstOrNull()?.resolvedReturnType?.toRegularClassSymbol(session) }
             .distinctBy { it.classId }
 
+    /** Every hint the result of a call depends on: its tag hints, the Collectors' key hints and their item hints. */
+    internal fun hintsOf(tag: String?, collectors: List<ClassId>): List<FirNamedFunctionSymbol> = buildList {
+        if (tag != null) addAll(hints(CollectorNames.collectorTagHint(tag)))
+        for (collector in collectors) {
+            val keys = hints(CollectorNames.collectorKeyHint(collector))
+            addAll(keys)
+            keys.mapNotNull { it.parameterClassId(0) }.distinct().forEach { x -> addAll(hints(CollectorNames.itemHint(x))) }
+        }
+    }
+
     /**
      * The items the call site sees for [collectors], sorted by FQN, with the same rules as the IR rewrite: one per
      * holder, and only holders that convert for the Collector.

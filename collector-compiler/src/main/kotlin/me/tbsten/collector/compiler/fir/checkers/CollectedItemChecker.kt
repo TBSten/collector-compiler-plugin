@@ -1,9 +1,11 @@
 package me.tbsten.collector.compiler.fir.checkers
 
+import me.tbsten.collector.compiler.CollectorNames
 import me.tbsten.collector.compiler.fir.CollectorErrors
 import me.tbsten.collector.compiler.fir.annotatesDeclaration
 import me.tbsten.collector.compiler.fir.collectorIndex
 import me.tbsten.collector.compiler.fir.conversionProblem
+import me.tbsten.collector.compiler.fir.describeHint
 import me.tbsten.collector.compiler.fir.itemName
 import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
@@ -38,11 +40,17 @@ internal object CollectedItemChecker : FirBasicDeclarationChecker(MppCheckerKind
     override fun check(declaration: FirDeclaration) {
         val session = context.session
         val index = session.collectorIndex
-        val annotations = declaration.annotations.filter { it.annotatesDeclaration() }
+        val allAnnotations = declaration.annotations.filter { it.annotatesDeclaration() }
             .mapNotNullTo(mutableSetOf()) { it.toAnnotationClassId(session) }
-            .filterTo(mutableSetOf()) { it in index.targetAnnotations }
-        if (annotations.isEmpty()) return
         val source = declaration.source ?: return
+        // a Collector for one of these annotations was built by another plugin version, so it is not read
+        val hintNames = allAnnotations.mapTo(mutableSetOf()) { CollectorNames.collectorForHintName(it.asFqNameString()) }
+        val stale = index.incompatibleCollectorHints.filter { it.name in hintNames }
+        if (stale.isNotEmpty()) {
+            reporter.reportOn(source, CollectorErrors.HINT_FORMAT_MISMATCH, stale.joinToString { it.describeHint() })
+        }
+        val annotations = allAnnotations.filterTo(mutableSetOf()) { it in index.targetAnnotations }
+        if (annotations.isEmpty()) return
 
         placementProblem(declaration)?.let {
             reporter.reportOn(source, CollectorErrors.ITEM_NOT_ALLOWED_HERE, it)

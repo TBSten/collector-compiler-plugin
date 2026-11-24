@@ -3,6 +3,8 @@ package me.tbsten.collector.compiler.fir.checkers
 import me.tbsten.collector.compiler.fir.CollectorErrors
 import me.tbsten.collector.compiler.fir.collectorElementType
 import me.tbsten.collector.compiler.fir.collectorHints
+import me.tbsten.collector.compiler.fir.describeHint
+import me.tbsten.collector.compiler.fir.hasCurrentHintFormat
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
 import org.jetbrains.kotlin.diagnostics.reportOn
 import org.jetbrains.kotlin.fir.analysis.checkers.MppCheckerKind
@@ -19,6 +21,7 @@ import org.jetbrains.kotlin.fir.types.isSubtypeOf
  * Checks the receiver, the tag and the type arguments of `collect*()` calls:
  * - the receiver is a direct reference to a `@CollectorFor` object, or the implicit receiver of `with(XCollector) { … }`;
  * - a tag is a compile-time constant, and every Collector with it collects a subtype of the requested T;
+ * - every hint the result depends on was written with this plugin's hint format;
  * - for `collectWithAnnotation` / `collectAsMap`, every collected annotation is an A.
  */
 internal object CollectCallChecker : FirFunctionCallChecker(MppCheckerKind.Common) {
@@ -42,6 +45,11 @@ internal object CollectCallChecker : FirFunctionCallChecker(MppCheckerKind.Commo
                 val detail = mismatched.joinToString { "${it.classId.shortClassName} (Collector<${it.collectorElementType()?.renderShort()}>)" }
                 reporter.reportOn(source, CollectorErrors.COLLECT_TAG_TYPE_MISMATCH, detail)
             }
+        }
+        val stale = session.collectorHints.hintsOf(call.tag, call.collectors.map { it.classId }).filter { !it.hasCurrentHintFormat() }
+        if (stale.isNotEmpty()) {
+            reporter.reportOn(source, CollectorErrors.HINT_FORMAT_MISMATCH, stale.joinToString { it.describeHint() })
+            return
         }
         if (call.function.kind.withAnnotations) {
             val a = expression.typeArgument(0) ?: return

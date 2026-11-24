@@ -1,5 +1,6 @@
 package me.tbsten.collector.compiler.fir
 
+import me.tbsten.collector.compiler.CollectorNames
 import org.jetbrains.kotlin.diagnostics.KtDiagnosticFactoryToRendererMap
 import org.jetbrains.kotlin.diagnostics.KtDiagnosticsContainer
 import org.jetbrains.kotlin.diagnostics.error0
@@ -33,6 +34,9 @@ object CollectorErrors : KtDiagnosticsContainer() {
 
     /** A callable reference such as `XCollector::collectAsList`. */
     val COLLECT_CALLABLE_REFERENCE by error0<KtElement>()
+
+    /** Hints written by another version of the plugin (arg: those hints). */
+    val HINT_FORMAT_MISMATCH by error1<KtElement, String>()
 
     /** `tag` of `@CollectorFor` that is not a string literal. */
     val COLLECTOR_FOR_TAG_NOT_LITERAL by error0<KtElement>()
@@ -74,6 +78,12 @@ object CollectorErrors : KtDiagnosticsContainer() {
             map.put(
                 COLLECT_CALLABLE_REFERENCE,
                 "Collect functions can not be referenced; call them directly (the call is replaced at compile time).",
+            )
+            map.put(
+                HINT_FORMAT_MISMATCH,
+                "Found Collector hints written by a different version of the Collector plugin: {0}. This plugin reads hint " +
+                    "format ${CollectorNames.HINT_FORMAT}; rebuild those modules with the same Collector version.",
+                CommonRenderers.STRING,
             )
             map.put(COLLECTOR_FOR_TAG_NOT_LITERAL, "The tag of @CollectorFor must be a string literal.")
             map.put(COLLECTOR_FOR_NOT_OBJECT, "@CollectorFor can only be used on an object.")
