@@ -1,5 +1,6 @@
 package me.tbsten.collector.compiler.ir
 
+import me.tbsten.collector.compiler.isNeverMetaAnnotation
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.backend.common.lower.DeclarationIrBuilder
 import org.jetbrains.kotlin.descriptors.ClassKind
@@ -15,13 +16,14 @@ import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
 import org.jetbrains.kotlin.ir.expressions.IrConstructorCall
 import org.jetbrains.kotlin.ir.symbols.IrClassSymbol
 import org.jetbrains.kotlin.ir.types.IrSimpleType
-import org.jetbrains.kotlin.ir.types.classFqName
 import org.jetbrains.kotlin.ir.types.classOrNull
 import org.jetbrains.kotlin.ir.types.typeOrFail
+import org.jetbrains.kotlin.ir.util.classId
 import org.jetbrains.kotlin.ir.util.deepCopyWithSymbols
 import org.jetbrains.kotlin.ir.visitors.IrVisitorVoid
 import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
 import org.jetbrains.kotlin.ir.visitors.acceptVoid
+import org.jetbrains.kotlin.name.ClassId
 
 /** Builds the bodies of `annotations_<X>()`: the X annotations of an item as a list. */
 internal class ItemAnnotations(
@@ -82,11 +84,12 @@ internal class ItemAnnotations(
 /** The [x] annotations on [this], in source order, with meta-annotations (annotation classes carrying X) expanded in place. */
 internal fun IrDeclaration.annotationsOfType(x: IrClassSymbol): List<IrConstructorCall> = annotationsOfType(annotations, x, emptySet())
 
-private fun annotationsOfType(annotations: List<IrConstructorCall>, x: IrClassSymbol, path: Set<String>): List<IrConstructorCall> =
+private fun annotationsOfType(annotations: List<IrConstructorCall>, x: IrClassSymbol, path: Set<ClassId>): List<IrConstructorCall> =
     annotations.flatMap { annotation ->
-        if (annotation.type.classOrNull == x) return@flatMap listOf(annotation)
-        val fq = annotation.type.classFqName?.asString() ?: return@flatMap emptyList()
-        if (fq in path || fq.startsWith("kotlin")) return@flatMap emptyList()
-        val meta = annotation.type.classOrNull?.owner?.takeIf { it.kind == ClassKind.ANNOTATION_CLASS } ?: return@flatMap emptyList()
-        annotationsOfType(meta.annotations, x, path + fq)
+        val symbol = annotation.type.classOrNull ?: return@flatMap emptyList()
+        if (symbol == x) return@flatMap listOf(annotation)
+        val meta = symbol.owner.takeIf { it.kind == ClassKind.ANNOTATION_CLASS } ?: return@flatMap emptyList()
+        val id = meta.classId ?: return@flatMap emptyList()
+        if (id in path || id.isNeverMetaAnnotation()) return@flatMap emptyList()
+        annotationsOfType(meta.annotations, x, path + id)
     }

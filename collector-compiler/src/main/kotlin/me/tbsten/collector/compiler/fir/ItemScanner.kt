@@ -3,6 +3,7 @@ package me.tbsten.collector.compiler.fir
 import me.tbsten.collector.compiler.CollectorNames
 import me.tbsten.collector.compiler.ItemIdentity
 import me.tbsten.collector.compiler.debugLog
+import me.tbsten.collector.compiler.isNeverMetaAnnotation
 import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.declarations.DirectDeclarationsAccess
