@@ -113,7 +113,7 @@ object CollectorErrors : KtDiagnosticsContainer() {
             map.put(
                 COLLECT_MISSED_ITEMS,
                 "Some declarations are not collected because the Collector was not visible where they are declared " +
-                    "(another module, or a source set the Collector is not part of): {0}. " +
+                    "(another module, or a source set the Collector is not part of). One example per module: {0}. " +
                     "Make the Collector visible there, e.g. declare it next to the annotation.",
                 CommonRenderers.STRING,
             )

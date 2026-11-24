@@ -91,7 +91,7 @@ class CollectorHints(session: FirSession) : FirExtensionSessionComponent(session
     /**
      * Items annotated with [annotation] that [collector] does not get because it was out of sight where they are
      * declared: in a module compiled before the Collector existed, or in a source set the Collector is not part of
-     * (an item of commonMain and a Collector of jvmMain). One example per module, sorted.
+     * (an item of commonMain and a Collector of jvmMain). One example per module, with the number of the others, sorted.
      *
      * These items have a holder, made for the Collectors their module did see. Declarations of a module that saw no
      * Collector at all have none; see [missedDeclarationsOf].
@@ -101,7 +101,8 @@ class CollectorHints(session: FirSession) : FirExtensionSessionComponent(session
             .mapNotNull { session.symbolProvider.getClassLikeSymbolByClassId(it) }
             .filter { holder -> holder.visibleCollectors().let { it.isNotEmpty() && collector !in it } }
             .mapNotNull { it.itemIdentity() }
-            .groupBy { it.module }.map { (_, items) -> items.min().fqName }
+            .groupBy { it.module }
+            .map { (_, items) -> items.min().fqName + if (items.size > 1) " and ${items.size - 1} more" else "" }
             .sorted()
 
     /**
