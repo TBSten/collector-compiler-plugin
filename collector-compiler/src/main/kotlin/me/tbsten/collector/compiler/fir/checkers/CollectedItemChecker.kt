@@ -29,7 +29,6 @@ import org.jetbrains.kotlin.fir.declarations.FirTypeAlias
 import org.jetbrains.kotlin.fir.declarations.FirValueParameter
 import org.jetbrains.kotlin.fir.declarations.utils.isInner
 import org.jetbrains.kotlin.fir.declarations.utils.isLocal
-import org.jetbrains.kotlin.fir.resolve.providers.firProvider
 import org.jetbrains.kotlin.fir.symbols.SymbolInternals
 import org.jetbrains.kotlin.fir.symbols.impl.FirCallableSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirClassLikeSymbol
@@ -145,9 +144,12 @@ internal object CollectedItemChecker : FirBasicDeclarationChecker(MppCheckerKind
     }
 
     /**
-     * The name of [declaration] when another collected declaration has the same FQN: an overload, or a declaration
-     * with the same name in another file of the package (private ones included, since their holders would clash). An
-     * expect declaration and its actual are one item (spec 06+).
+     * The name of [declaration] when the same file or the same object has another collected declaration of that name:
+     * an overload, or a function and a property. Their holders would be one.
+     *
+     * Declarations of the same name in two files of a package are two items (`private fun Preview()` in every file).
+     * A top-level class clashes with nothing: its package can not have another one, and functions and properties
+     * are told apart from it by their file.
      */
     @OptIn(DirectDeclarationsAccess::class, SymbolInternals::class)
     context(context: CheckerContext)
@@ -155,11 +157,12 @@ internal object CollectedItemChecker : FirBasicDeclarationChecker(MppCheckerKind
         val name = declaration.itemName() ?: return null
         val siblings = when (val owner = context.containingDeclarations.lastOrNull()) {
             is FirRegularClassSymbol -> owner.fir.declarations
-            is FirFileSymbol -> context.session.firProvider.getFirFilesByPackage(owner.fir.packageDirective.packageFqName).flatMap { it.declarations }
+            is FirFileSymbol -> if (declaration is FirRegularClass) return null else owner.fir.declarations.filter { it !is FirRegularClass }
             else -> return null
         }.filter { it.itemName() == name }
         val index = context.session.collectorIndex
         fun FirDeclaration.collected() = expandedAnnotationIds(context.session, this).any { index.targetsOf(it).isNotEmpty() }
+        // an expect declaration and its actual are one item (spec 06+)
         val expectCollected = siblings.any { it.isExpect && it.collected() }
         val clashes = siblings.count { !it.isExpect && (it.collected() || (expectCollected && it.isActual)) } +
             if (expectCollected && siblings.none { it.isActual }) 1 else 0

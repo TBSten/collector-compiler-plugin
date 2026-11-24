@@ -65,7 +65,7 @@ object CollectorErrors : KtDiagnosticsContainer() {
     /** A collected annotation on a declaration that can not be collected (arg: why). */
     val ITEM_NOT_ALLOWED_HERE by error1<KtElement, String>()
 
-    /** Two collected declarations with the same fully-qualified name (arg: the name). */
+    /** Two collected declarations with the same name in one file or one object (arg: the name). */
     val ITEM_NAME_CLASH by error1<KtElement, String>()
 
     /** A collected annotation on an actual declaration that its expect declaration, the item, does not have (arg: the annotations). */
@@ -132,7 +132,7 @@ object CollectorErrors : KtDiagnosticsContainer() {
             map.put(ITEM_NOT_ALLOWED_HERE, "This declaration can not be collected: {0}.", CommonRenderers.STRING)
             map.put(
                 ITEM_NAME_CLASH,
-                "Collected declarations must have distinct names, but {0} is used more than once (overloads, and declarations of the same name in other files of the package, are not supported).",
+                "Collected declarations of a file or of an object must have distinct names, but {0} is used more than once (overloads are not supported).",
                 CommonRenderers.STRING,
             )
             map.put(
