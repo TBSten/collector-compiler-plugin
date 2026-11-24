@@ -42,11 +42,13 @@ internal class FunctionSignature(
 
 /**
  * T read as a function type, or null when it is none. An alias of a function type is one
- * (`typealias Handler = (String) -> String`).
+ * (`typealias Handler = (String) -> String`). `KFunction1<…>` and the like are not: a value of those is a function
+ * reference, with a name and reflection, which the lambda a holder makes is not.
  */
 internal fun functionSignature(session: FirSession, t: ConeKotlinType): FunctionSignature? {
     val type = t.fullyExpandedType(session)
     val kind = type.functionTypeKind(session) ?: return null
+    if (kind.isReflectType) return null
     val args = type.typeArguments.map { it.type ?: return null }
     if (args.isEmpty()) return null
     return FunctionSignature(
@@ -83,7 +85,13 @@ internal fun conversionProblem(session: FirSession, declaration: FirDeclaration,
             if (type.isSubtypeOf(t)) null else "${declaration.name} is not a subtype of T"
         }
         is FirNamedFunction -> {
-            if (signature == null) return "a function can only be collected with a function type T"
+            if (signature == null) {
+                return if (t.fullyExpandedType(session).functionTypeKind(session)?.isReflectType == true) {
+                    "T is a KFunction type, which a function reference is but the collected value is not; use the function type instead"
+                } else {
+                    "a function can only be collected with a function type T"
+                }
+            }
             if (declaration.typeParameters.isNotEmpty()) return "generic functions can not be collected"
             if (declaration.contextParameters.isNotEmpty()) return "functions with context parameters can not be collected"
             val composable = declaration.hasAnnotation(CollectorNames.COMPOSABLE, session)
