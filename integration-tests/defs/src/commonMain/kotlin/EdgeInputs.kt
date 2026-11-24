@@ -49,3 +49,9 @@ annotation class PerModule
 
 @CollectorFor<PerModule>()
 object PerModuleCollector : Collector<String>
+
+// a declaration whose name is longer than a file name can be once package, file and module are added to it
+annotation class LongName
+
+@CollectorFor<LongName>()
+object LongNameCollector : Collector<String>

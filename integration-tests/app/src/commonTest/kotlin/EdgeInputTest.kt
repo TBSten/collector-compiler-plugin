@@ -3,6 +3,7 @@ import defs.PaletteCollector
 import defs.PaletteFactoryCollector
 import defs.Labeled
 import defs.LabeledCollector
+import defs.LongNameCollector
 import defs.SettingCollector
 import defs.Tinted
 import defs.TwiceCollector
@@ -53,5 +54,11 @@ class EdgeInputTest {
     @Test
     fun packageAndOuterClassWithTheSameName() {
         assertEquals(listOf("package edge.twice", "object edge.twice"), TwiceCollector.collectAsList())
+    }
+
+    /** Its holder is named after a shortened form of the name; the item itself is unaffected. */
+    @Test
+    fun longNamesAreCollected() {
+        assertEquals(listOf("long"), LongNameCollector.collectAsList())
     }
 }

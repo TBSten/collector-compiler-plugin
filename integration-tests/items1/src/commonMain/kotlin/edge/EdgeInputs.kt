@@ -27,3 +27,5 @@ annotation class OwnLabel
 
 @defs.DefsLabel @defs.Labeled("direct") val labeledByDependency = "dependency"
 @OwnLabel val labeledByOwn = "own"
+
+@defs.LongName val aNameThatIsLongEnoughToNeedShorteningAndStillGoesOnAndStillGoesOnAndStillGoesOnAndStillGoesOnAndStillGoesOnAndStillGoesOnAndStillGoesOnAndStillGoesOnAndStillGoesOnAndStillGoesOnAndStillGoesOnAndStillGoesOn = "long"
