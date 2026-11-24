@@ -31,8 +31,11 @@ internal class ItemAnnotations(
 ) {
     /**
      * Gives the holder member [holderFn], declared as `annotations_<X>(): List<X>`, the body `return <bridge>()`. The
-     * bridge, next to [target], returns `listOf(X(…), …)`: copies of the X annotations on [target], in source order,
-     * with meta-annotations expanded in place.
+     * bridge, next to [target], returns `listOf(X(…), …)`: the X annotations of the item, in source order, with
+     * meta-annotations expanded in place.
+     *
+     * They are the annotations FIR copied onto [holderFn], which call sites already compare (collectAsMap keys). For
+     * an expect declaration those are the ones written on it, which its actual, the [target], need not repeat.
      *
      * The annotations are built where they were written. What their arguments refer to is visible there (a private
      * class, a private annotation class), and the classes the JVM backend generates to implement them end up in a
@@ -41,7 +44,8 @@ internal class ItemAnnotations(
      */
     fun fill(holderFn: IrSimpleFunction, target: IrDeclaration) {
         val elementType = (holderFn.returnType as IrSimpleType).arguments.single().typeOrFail
-        val annotations = target.annotationsOfType(annotationClass(holderFn))
+        val x = annotationClass(holderFn)
+        val annotations = holderFn.annotationsOfType(x).ifEmpty { target.annotationsOfType(x) }
         val bridge = bridges.bridgeFor(holderFn, target, always = true) {
             irCall(symbols.listOf, holderFn.returnType, typeArguments = listOf(elementType)).apply {
                 val parent = scope.getLocalDeclarationParent()
