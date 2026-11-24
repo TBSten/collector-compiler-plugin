@@ -67,7 +67,7 @@ class EdgeInputTest {
     /** A package and an outer class can spell the same FQN in two modules: both are items, ordered by module. */
     @Test
     fun packageAndOuterClassWithTheSameName() {
-        assertEquals(listOf("package edge.twice", "object edge.twice"), TwiceCollector.collectAsList())
+        assertEquals(listOf("package edge.twice", "object edge.twice"), TwiceCollector.collectAsList().map { it.toString() })
     }
 
     /** Its holder is named after a shortened form of the name; the item itself is unaffected. */

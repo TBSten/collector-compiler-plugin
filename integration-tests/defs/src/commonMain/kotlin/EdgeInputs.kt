@@ -37,12 +37,13 @@ object LabeledCollector : Collector<String>
 @Labeled("from-defs")
 annotation class DefsLabel
 
-// two modules, one FQN: `edge.twice.c` is a property of package edge.twice in one module and of object edge.twice in
-// the other
+// two modules, one FQN: `edge.twice.c` is a property of package edge.twice in one module and an object nested in
+// object edge.twice in the other. (Not a property on both sides: Kotlin/Native gives a property `c` of the package and
+// one of the object the same symbol, so the two modules could not be linked into one binary.)
 annotation class Twice
 
 @CollectorFor<Twice>()
-object TwiceCollector : Collector<String>
+object TwiceCollector : Collector<Any>
 
 // two modules, one FQN: the top-level property `edge.module` of two modules (the JVM allows it when the files differ)
 annotation class PerModule

@@ -4,5 +4,5 @@ import defs.Twice
 
 @Suppress("ClassName")
 object twice {
-    @Twice val c = "object edge.twice"
+    @Twice object c { override fun toString() = "object edge.twice" }
 }
