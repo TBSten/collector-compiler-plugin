@@ -17,6 +17,7 @@ import org.jetbrains.kotlin.fir.types.FirTypeProjectionWithVariance
 import org.jetbrains.kotlin.fir.types.coneTypeOrNull
 import org.jetbrains.kotlin.fir.types.constructClassLikeType
 import org.jetbrains.kotlin.fir.types.isSubtypeOf
+import org.jetbrains.kotlin.fir.types.renderReadable
 
 /**
  * Checks the receiver, the tag and the type arguments of `collect*()` calls:
@@ -44,7 +45,7 @@ internal object CollectCallChecker : FirFunctionCallChecker(MppCheckerKind.Commo
             val t = expression.typeArgument(0)
             val mismatched = call.collectors.filter { c -> t != null && c.collectorElementType()?.isSubtypeOf(t, session) != true }
             if (mismatched.isNotEmpty()) {
-                val detail = mismatched.joinToString { "${it.classId.shortClassName} (Collector<${it.collectorElementType()?.renderShort()}>)" }
+                val detail = mismatched.joinToString { "${it.classId.shortClassName} (Collector<${it.collectorElementType()?.renderReadable()}>)" }
                 reporter.reportOn(source, CollectorErrors.COLLECT_TAG_TYPE_MISMATCH, detail)
             }
         }
@@ -72,6 +73,4 @@ internal object CollectCallChecker : FirFunctionCallChecker(MppCheckerKind.Commo
 
     private fun FirFunctionCall.typeArgument(index: Int): ConeKotlinType? =
         (typeArguments.getOrNull(index) as? FirTypeProjectionWithVariance)?.typeRef?.coneTypeOrNull
-
-    private fun ConeKotlinType.renderShort(): String = toString().substringAfterLast('/')
 }
