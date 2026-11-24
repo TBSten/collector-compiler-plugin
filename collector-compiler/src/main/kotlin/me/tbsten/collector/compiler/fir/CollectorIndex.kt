@@ -2,6 +2,7 @@ package me.tbsten.collector.compiler.fir
 
 import me.tbsten.collector.compiler.CollectorNames
 import me.tbsten.collector.compiler.debugLog
+import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.caches.firCachesFactory
 import org.jetbrains.kotlin.fir.caches.getValue
@@ -42,6 +43,7 @@ class CollectorIndex(session: FirSession) : FirExtensionSessionComponent(session
     internal val ownCollectors: List<CollectorDef> by session.firCachesFactory.createLazyValue {
         session.predicateBasedProvider.getSymbolsByPredicate(COLLECTOR_FOR_PREDICATE)
             .filterIsInstance<FirRegularClassSymbol>()
+            .filter { it.classKind == ClassKind.OBJECT } // others are reported by CollectorForChecker
             .flatMap { cls ->
                 cls.fir.annotations
                     .filter { it.annotationTypeRef.coneTypeOrNull?.classId == CollectorNames.COLLECTOR_FOR }
@@ -51,6 +53,7 @@ class CollectorIndex(session: FirSession) : FirExtensionSessionComponent(session
                         x?.let { CollectorDef(cls.classId, it, cls) }
                     }
             }
+            .distinct()
     }
 
     internal val classpathCollectors: List<CollectorDef> by session.firCachesFactory.createLazyValue {
@@ -66,6 +69,7 @@ class CollectorIndex(session: FirSession) : FirExtensionSessionComponent(session
                 val c = provider.getClassLikeSymbolByClassId(cId) as? FirRegularClassSymbol ?: return@mapNotNull null
                 CollectorDef(c.classId, x, c)
             }
+            .distinct()
             .also { debugLog { "classpath collectors: $it" } }
     }
 
