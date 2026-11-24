@@ -85,8 +85,21 @@ internal object HintMessage {
             .mapNotNull { line -> line.split(SEPARATOR, limit = 2).takeIf { it.size == 2 }?.let { it[0] to it[1] } }
             .toMap()
 
+    /** Every value of the field [key] of [message], for a field that is written once per value. */
+    fun values(message: String, key: String): List<String> {
+        val prefix = key + SEPARATOR
+        return message.lineSequence().drop(1).filter { it.startsWith(prefix) }.map { it.removePrefix(prefix) }.toList()
+    }
+
     /** The field of a missed marker: one of the declarations that were not collected. */
     const val MISSED = "missed"
+
+    /**
+     * A field of a holder, written once per Collector: the class id of a Collector of the item's annotations that was
+     * visible where the item is declared. The item has no `as_<C>()` for a Collector C either when it does not convert
+     * for C or when C was out of sight; this field tells the two apart.
+     */
+    const val COLLECTOR = "collector"
 
     /**
      * The field of a `collectorFor_` or `collectorKey_` hint: the class id of X as the module of the Collector knows

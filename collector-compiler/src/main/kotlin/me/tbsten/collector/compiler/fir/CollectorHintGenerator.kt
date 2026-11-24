@@ -47,7 +47,9 @@ class CollectorHintGenerator(session: FirSession) : FirDeclarationGenerationExte
     /** Holders and missed markers are hidden from user code; their message says what they stand for. */
     override fun generateTopLevelClassLikeDeclaration(classId: ClassId): FirClassLikeSymbol<*>? {
         val (kind, fields) = items.own.missedMarkers[classId]?.let { ClassKind.INTERFACE to listOf(HintMessage.MISSED to it) }
-            ?: items.own.byHolder[classId]?.let { ClassKind.OBJECT to it.identity.toFields() }
+            ?: items.own.byHolder[classId]?.let { item ->
+                ClassKind.OBJECT to item.identity.toFields() + visibleCollectors(item).map { HintMessage.COLLECTOR to it.collector.asString() }
+            }
             ?: return null
         val cls = createTopLevelClass(classId, CollectorPluginKey, kind)
         cls.replaceAnnotations(listOf(hiddenMarker(HintMessage.of(fields))))
@@ -61,9 +63,13 @@ class CollectorHintGenerator(session: FirSession) : FirDeclarationGenerationExte
     private fun FirClassSymbol<*>.isCollectorGenerated(): Boolean =
         (origin as? FirDeclarationOrigin.Plugin)?.key == CollectorPluginKey
 
+    /** The Collectors of the annotations of [item] that this module can see, whether the item converts for them or not. */
+    private fun visibleCollectors(item: ItemDef): List<CollectorDef> =
+        item.annotations.flatMap { collectors.collectorsFor(it) }.distinctBy { it.collector }
+
     /** The visible Collectors this item can be converted for (spec 04); the others are left to the checker's warning. */
     private fun convertibleCollectors(item: ItemDef): List<CollectorDef> =
-        item.annotations.flatMap { collectors.collectorsFor(it) }.distinctBy { it.collector }.filter { c ->
+        visibleCollectors(item).filter { c ->
             val t = c.elementType ?: return@filter false
             val problem = conversionProblem(session, item.declaration, t)
             if (problem != null) debugLog { "${item.identity.fqName} is not converted for ${c.collector}: $problem" }
