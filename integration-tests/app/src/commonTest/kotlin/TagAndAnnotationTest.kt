@@ -49,6 +49,12 @@ class TagAndAnnotationTest {
     }
 
     @Test
+    fun explicitThisReceiver() {
+        val names = EntryCollector.run { this.collectAsList() }.map { it.name }
+        assertEquals(EntryCollector.collectAsList().map { it.name }, names)
+    }
+
+    @Test
     fun withAnnotation() {
         val pairs: List<Pair<Screen, Page>> = ScreenCollector.collectWithAnnotation()
         assertEquals(listOf("/home" to "Home", "/settings" to "Settings"), pairs.map { (a, p) -> a.path to p.title })
