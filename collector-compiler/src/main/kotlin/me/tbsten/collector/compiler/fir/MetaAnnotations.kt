@@ -3,6 +3,7 @@ package me.tbsten.collector.compiler.fir
 import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.declarations.FirDeclaration
+import org.jetbrains.kotlin.fir.declarations.FirDeclarationOrigin
 import org.jetbrains.kotlin.fir.declarations.toAnnotationClassId
 import org.jetbrains.kotlin.fir.expressions.FirAnnotation
 import org.jetbrains.kotlin.fir.resolve.providers.symbolProvider
@@ -39,7 +40,11 @@ internal fun annotationsOfType(
  * The classes of the annotations on [declaration] itself (no use-site targets), and of those reached through
  * meta-annotations.
  */
-internal fun expandedAnnotationIds(session: FirSession, declaration: FirDeclaration): Set<ClassId> {
+internal fun expandedAnnotationIds(session: FirSession, declaration: FirDeclaration): Set<ClassId> =
+    withMetaAnnotations(session, declaration.annotations.filter { it.annotatesDeclaration() }.mapNotNull { it.toAnnotationClassId(session) })
+
+/** The annotation classes [ids], and those reached from them through meta-annotations. */
+internal fun withMetaAnnotations(session: FirSession, ids: List<ClassId>): Set<ClassId> {
     val result = mutableSetOf<ClassId>()
     fun visit(ids: List<ClassId>, path: Set<ClassId>) {
         for (id in ids) {
@@ -50,6 +55,10 @@ internal fun expandedAnnotationIds(session: FirSession, declaration: FirDeclarat
             visit(meta.resolvedAnnotationsWithArguments.mapNotNull { it.toAnnotationClassId(session) }, path + id)
         }
     }
-    visit(declaration.annotations.filter { it.annotatesDeclaration() }.mapNotNull { it.toAnnotationClassId(session) }, emptySet())
+    visit(ids, emptySet())
     return result
 }
+
+/** Whether the class [id] is declared in a Java source compiled with this module. */
+internal fun FirSession.isJavaSourceClass(id: ClassId): Boolean =
+    symbolProvider.getClassLikeSymbolByClassId(id)?.origin == FirDeclarationOrigin.Java.Source

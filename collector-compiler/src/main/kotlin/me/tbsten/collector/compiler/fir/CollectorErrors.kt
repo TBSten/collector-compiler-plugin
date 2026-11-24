@@ -53,6 +53,12 @@ object CollectorErrors : KtDiagnosticsContainer() {
     /** An annotation the plugin read differently from the compiler (arg: the annotations concerned). */
     val ANNOTATION_MISREAD by error1<KtElement, String>()
 
+    /**
+     * A collected annotation reached through an annotation class of a Java source of this module, which the plugin
+     * can not look into (arg: those annotation classes).
+     */
+    val META_ANNOTATION_IN_JAVA_SOURCE by error1<KtElement, String>()
+
     /** The same annotation X twice on one Collector (arg: X). */
     val COLLECTOR_FOR_DUPLICATE by warning1<KtElement, String>()
 
@@ -111,6 +117,12 @@ object CollectorErrors : KtDiagnosticsContainer() {
                 ANNOTATION_MISREAD,
                 "Collector reads annotations before the compiler resolves them and could not tell which annotation this is: {0}. " +
                     "Write the annotation with its full name, or import it explicitly.",
+                CommonRenderers.STRING,
+            )
+            map.put(
+                META_ANNOTATION_IN_JAVA_SOURCE,
+                "{0} is declared in a Java source of this module, where Collector can not read the annotations on it, so this " +
+                    "declaration is not collected through it. Declare it in Kotlin or in another module, or annotate this declaration directly.",
                 CommonRenderers.STRING,
             )
             map.put(COLLECTOR_FOR_DUPLICATE, "@CollectorFor<{0}> is repeated on the same object.", CommonRenderers.STRING)

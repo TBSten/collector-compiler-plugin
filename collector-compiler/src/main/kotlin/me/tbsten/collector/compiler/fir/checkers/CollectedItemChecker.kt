@@ -7,7 +7,9 @@ import me.tbsten.collector.compiler.fir.collectorItemIndex
 import me.tbsten.collector.compiler.fir.conversionProblem
 import me.tbsten.collector.compiler.fir.describeHint
 import me.tbsten.collector.compiler.fir.expandedAnnotationIds
+import me.tbsten.collector.compiler.fir.isJavaSourceClass
 import me.tbsten.collector.compiler.fir.itemName
+import me.tbsten.collector.compiler.fir.withMetaAnnotations
 import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
 import org.jetbrains.kotlin.diagnostics.reportOn
@@ -63,7 +65,17 @@ internal object CollectedItemChecker : FirBasicDeclarationChecker(MppCheckerKind
         // The items were found before the compiler resolved annotations (see AnnotationResolver). Where the two
         // disagree the hints are wrong, so the declaration must not compile.
         if (scanned != annotations) {
-            val misread = (annotations - scanned) + (scanned - annotations)
+            // the one case known in advance: a meta-annotation whose annotations could not be read that early
+            val missed = annotations - scanned
+            val unread = allAnnotations.filter { carrier ->
+                session.isJavaSourceClass(carrier) &&
+                    withMetaAnnotations(session, listOf(carrier)).any { it != carrier && index.targetsOf(it).any(missed::contains) }
+            }
+            if (unread.isNotEmpty()) {
+                reporter.reportOn(source, CollectorErrors.META_ANNOTATION_IN_JAVA_SOURCE, unread.joinToString { "@${it.shortClassName}" })
+                return
+            }
+            val misread = missed + (scanned - annotations)
             reporter.reportOn(source, CollectorErrors.ANNOTATION_MISREAD, misread.joinToString { it.asFqNameString() })
             return
         }
