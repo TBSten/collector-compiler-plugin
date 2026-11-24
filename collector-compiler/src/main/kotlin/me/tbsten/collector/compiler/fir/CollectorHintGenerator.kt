@@ -108,7 +108,7 @@ class CollectorHintGenerator(session: FirSession) : FirDeclarationGenerationExte
         val type = StandardClassIds.List.constructClassLikeType(arrayOf(x.constructClassLikeType()))
         val function = createMemberFunction(owner, CollectorPluginKey, CollectorNames.annotationsFunction(x), type)
         val copies = item.declaration.annotations
-            .filter { it.annotationTypeRef.coneTypeOrNull?.classId == x }
+            .filter { it.annotatesDeclaration() && it.annotationTypeRef.coneTypeOrNull?.classId == x }
             .map { buildAnnotationCopy(it) { useSiteTarget = null } }
         function.replaceAnnotations(copies)
         return function.symbol

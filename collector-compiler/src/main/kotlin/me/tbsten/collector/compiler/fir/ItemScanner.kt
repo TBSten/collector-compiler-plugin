@@ -90,6 +90,7 @@ internal class ItemScanner(private val session: FirSession) {
         val fq = if (prefix.isEmpty()) name else "$prefix.$name"
         val annotations = mutableSetOf<ClassId>()
         for (ann in decl.annotations) {
+            if (!ann.annotatesDeclaration()) continue
             candidates += annotationCandidates(ann, file)
             val id = resolveAnnotation(ann, file, targets) ?: continue
             if (id in targets) annotations += id

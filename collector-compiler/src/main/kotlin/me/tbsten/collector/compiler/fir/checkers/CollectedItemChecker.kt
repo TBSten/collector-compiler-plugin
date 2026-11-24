@@ -1,6 +1,7 @@
 package me.tbsten.collector.compiler.fir.checkers
 
 import me.tbsten.collector.compiler.fir.CollectorErrors
+import me.tbsten.collector.compiler.fir.annotatesDeclaration
 import me.tbsten.collector.compiler.fir.collectorIndex
 import me.tbsten.collector.compiler.fir.conversionProblem
 import me.tbsten.collector.compiler.fir.itemName
@@ -34,7 +35,8 @@ internal object CollectedItemChecker : FirBasicDeclarationChecker(MppCheckerKind
     override fun check(declaration: FirDeclaration) {
         val session = context.session
         val index = session.collectorIndex
-        val annotations = declaration.annotations.mapNotNullTo(mutableSetOf()) { it.toAnnotationClassId(session) }
+        val annotations = declaration.annotations.filter { it.annotatesDeclaration() }
+            .mapNotNullTo(mutableSetOf()) { it.toAnnotationClassId(session) }
             .filterTo(mutableSetOf()) { it in index.targetAnnotations }
         if (annotations.isEmpty()) return
         val source = declaration.source ?: return
@@ -92,7 +94,8 @@ internal object CollectedItemChecker : FirBasicDeclarationChecker(MppCheckerKind
             else -> return null
         }
         val clashes = siblings.count { other ->
-            other.itemName() == name && other.annotations.any { it.toAnnotationClassId(context.session) in targets }
+            other.itemName() == name &&
+                other.annotations.any { it.annotatesDeclaration() && it.toAnnotationClassId(context.session) in targets }
         }
         return if (clashes > 1) name else null
     }
