@@ -7,11 +7,13 @@ import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
 import org.jetbrains.kotlin.fir.declarations.hasAnnotation
 import org.jetbrains.kotlin.fir.declarations.utils.isConst
+import org.jetbrains.kotlin.fir.expressions.FirCheckedSafeCallSubject
 import org.jetbrains.kotlin.fir.expressions.FirExpression
 import org.jetbrains.kotlin.fir.expressions.FirFunctionCall
 import org.jetbrains.kotlin.fir.expressions.FirLiteralExpression
 import org.jetbrains.kotlin.fir.expressions.FirPropertyAccessExpression
 import org.jetbrains.kotlin.fir.expressions.FirResolvedQualifier
+import org.jetbrains.kotlin.fir.expressions.FirSafeCallExpression
 import org.jetbrains.kotlin.fir.expressions.FirThisReceiverExpression
 import org.jetbrains.kotlin.fir.expressions.unwrapSmartcastExpression
 import org.jetbrains.kotlin.fir.references.toResolvedNamedFunctionSymbol
@@ -39,7 +41,7 @@ internal fun collectCall(expression: FirFunctionCall): CollectCall? {
     val callee = expression.calleeReference.toResolvedNamedFunctionSymbol() ?: return null
     val function = CollectFunction.of(callee.callableId) ?: return null
     val session = context.session
-    val receiver = expression.extensionReceiver?.unwrapSmartcastExpression()
+    val receiver = expression.extensionReceiver?.unwrapSmartcastExpression()?.unwrapSafeCallSubject()?.unwrapSmartcastExpression()
     if (receiver == null) {
         val tag = constantString(expression.argumentList.arguments.firstOrNull())
         val collectors = tag?.let { session.collectorHints.collectorsWithTag(it) }.orEmpty()
@@ -54,6 +56,17 @@ internal fun collectCall(expression: FirFunctionCall): CollectCall? {
     }
     val collector = symbol?.takeIf { it.classKind == ClassKind.OBJECT && it.hasAnnotation(CollectorNames.COLLECTOR_FOR, session) }
     return CollectCall(function, expression, tag = null, listOfNotNull(collector), receiverIsValid = collector != null)
+}
+
+/**
+ * The receiver of the enclosing safe call when [this] stands for it: `XCollector` of `XCollector?.collect…()`. The
+ * subject itself only points at the receiver as it was before resolution.
+ */
+context(context: CheckerContext)
+private fun FirExpression.unwrapSafeCallSubject(): FirExpression {
+    if (this !is FirCheckedSafeCallSubject) return this
+    val safeCall = context.containingElements.lastOrNull { it is FirSafeCallExpression && it.checkedSubjectRef.value === this }
+    return (safeCall as? FirSafeCallExpression)?.receiver ?: this
 }
 
 /** A string literal or a reference to a `const val` holding one. */
