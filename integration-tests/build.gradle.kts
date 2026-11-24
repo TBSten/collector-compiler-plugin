@@ -11,7 +11,7 @@ subprojects {
     }
 }
 
-configure(subprojects.filter { !it.name.startsWith("compose-") }) {
+configure(subprojects.filter { !it.name.startsWith("compose-") && !it.name.startsWith("ic-") }) {
     apply(plugin = "org.jetbrains.kotlin.multiplatform")
     // extlib: an "external" library; oldhints: hand-written hints of other plugin versions
     if (name != "extlib" && name != "oldhints") apply(plugin = "me.tbsten.collector")
@@ -41,4 +41,11 @@ configure(subprojects.filter { it.name.startsWith("compose-") }) {
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
         }
     }
+}
+
+// For scripts/ic-check.sh. With the JVM plugin alone a module is recompiled file by file; one with a common source
+// set is recompiled as a whole, which hides what incremental compilation would miss.
+configure(subprojects.filter { it.name.startsWith("ic-") }) {
+    apply(plugin = "org.jetbrains.kotlin.jvm")
+    apply(plugin = "me.tbsten.collector")
 }

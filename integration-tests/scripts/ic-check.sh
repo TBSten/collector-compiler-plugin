@@ -117,4 +117,63 @@ expect_pass "Collector added upstream with an existing tag joins the tag call" -
 
 cleanup
 expect_pass "back to baseline"
+
+# JVM-only modules (ic-defs <- ic-items <- ic-app), recompiled file by file. Main.kt of ic-app is never touched: it has
+# to be recompiled because of what changes around it. One change after another, without a clean build in between.
+DEFS=ic-defs/src/main/kotlin/Defs.kt
+ITEMS=ic-items/src/main/kotlin/Items.kt
+LOCAL=ic-app/src/main/kotlin/Local.kt
+rm -rf build/ic-sources && mkdir -p build/ic-sources
+cp "$DEFS" "$ITEMS" "$LOCAL" build/ic-sources/
+restore_sources() {
+    cp build/ic-sources/Defs.kt "$DEFS"; cp build/ic-sources/Items.kt "$ITEMS"; cp build/ic-sources/Local.kt "$LOCAL"
+}
+trap 'cleanup; restore_sources' EXIT
+edit() { # <sed expression> <file>
+    sed "$1" "$2" > build/ic-sources/edit.tmp && cp build/ic-sources/edit.tmp "$2"
+}
+
+expect_output() { # <label> <expected output of :ic-app:run>
+    local actual
+    actual=$(./gradlew :ic-app:run -q 2> build/ic-check.log)
+    if [ "$actual" == "$2" ]; then
+        echo "PASS  $1"
+    else
+        echo "FAIL  $1"; echo "      expected: $2"; echo "      actual:   $actual"
+        grep -m3 -E "^e: |Exception|Error" build/ic-check.log | sed 's/^/      /'; FAILED=1
+    fi
+}
+
+expect_output "jvm: baseline" "[loc1, loc2, up1, up2]"
+
+edit 's/^@Tracked val loc2/val loc2/' "$LOCAL"
+expect_output "jvm: annotation removed in the module of the call" "[loc1, up1, up2]"
+
+cp build/ic-sources/Local.kt "$LOCAL"
+edit 's/val loc2 = "loc2"/val loc2 = 2/' "$LOCAL"
+expect_output "jvm: item of the module of the call no longer converts" "[loc1, up1, up2]"
+
+mv "$LOCAL" "${LOCAL%Local.kt}Moved.kt"
+expect_output "jvm: file of items renamed" "[loc1, up1, up2]"
+
+rm "${LOCAL%Local.kt}Moved.kt"
+expect_output "jvm: file of items removed" "[up1, up2]"
+
+cp build/ic-sources/Local.kt "$LOCAL"
+expect_output "jvm: file of items back" "[loc1, loc2, up1, up2]"
+
+edit 's/val up2 = "up2"/val up2 = 2/' "$ITEMS"
+expect_output "jvm: upstream item no longer converts" "[loc1, loc2, up1]"
+
+edit 's/val upInt = 1/val upInt = "one"/' "$ITEMS"
+expect_output "jvm: upstream item starts to convert" "[loc1, loc2, up1, one]"
+
+edit 's/Collector<String>/Collector<Any>/' "$DEFS"
+expect_output "jvm: T of the Collector widened" "[loc1, loc2, 1, up1, 2, one]"
+
+edit 's/Collector<Any>/Collector<Int>/' "$DEFS"
+expect_output "jvm: T of the Collector changed" "[1, 2]"
+
+restore_sources
+expect_output "jvm: back to baseline" "[loc1, loc2, up1, up2]"
 exit $FAILED
