@@ -4,6 +4,13 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose") version libs.versions.kotlin.get() apply false
 }
 
+subprojects {
+    // Malformed IR from the plugin fails the build instead of passing unnoticed (the JVM backend does not check by default).
+    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask<*>>().configureEach {
+        compilerOptions.freeCompilerArgs.addAll("-Xverify-ir=error", "-Xverify-ir-visibility")
+    }
+}
+
 configure(subprojects.filter { !it.name.startsWith("compose-") }) {
     apply(plugin = "org.jetbrains.kotlin.multiplatform")
     // extlib: an "external" library; oldhints: hand-written hints of other plugin versions
