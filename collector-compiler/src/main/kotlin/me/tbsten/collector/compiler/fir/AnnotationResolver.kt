@@ -4,6 +4,7 @@ import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.descriptors.Visibilities
 import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.declarations.FirClassLikeDeclaration
+import org.jetbrains.kotlin.fir.declarations.FirDeclarationOrigin
 import org.jetbrains.kotlin.fir.declarations.FirFile
 import org.jetbrains.kotlin.fir.declarations.FirRegularClass
 import org.jetbrains.kotlin.fir.declarations.FirResolvedImport
@@ -11,6 +12,7 @@ import org.jetbrains.kotlin.fir.declarations.FirTypeAlias
 import org.jetbrains.kotlin.fir.declarations.utils.classId
 import org.jetbrains.kotlin.fir.declarations.utils.visibility
 import org.jetbrains.kotlin.fir.expressions.FirAnnotation
+import org.jetbrains.kotlin.fir.java.javaSymbolProvider
 import org.jetbrains.kotlin.fir.languageVersionSettings
 import org.jetbrains.kotlin.fir.resolve.providers.dependenciesSymbolProvider
 import org.jetbrains.kotlin.fir.resolve.providers.firProvider
@@ -38,12 +40,13 @@ import org.jetbrains.kotlin.name.Name
  * 5. default imports (`kotlin.*` and the like);
  * 6. for `a.b.Entry`, the class `Entry` of the package `a.b`.
  *
- * Classes are only read from the sources of this module and from its dependencies, never through the session's whole
- * symbol provider: that one asks the hint generator, which is what is running.
+ * Classes are only read from the sources of this module (Kotlin and Java) and from its dependencies, never through the
+ * session's whole symbol provider: that one asks the hint generator, which is what is running.
  *
- * One rule is left out: classes nested in a supertype of a surrounding class. `CollectedItemChecker` compares every
- * result with what the compiler resolved in the end, so a name this class gets wrong is a compile error and not an
- * item that is silently left out.
+ * Two things are left out: classes nested in a supertype of a surrounding class, and the annotations on an annotation
+ * class declared in a Java source of this module (see [annotationsOn]). `CollectedItemChecker` compares every result
+ * with what the compiler resolved in the end, so what this class gets wrong is a compile error and not an item that
+ * is silently left out.
  */
 @OptIn(SymbolInternals::class)
 internal class AnnotationResolver(private val session: FirSession) {
@@ -93,6 +96,10 @@ internal class AnnotationResolver(private val session: FirSession) {
     fun annotationsOn(id: ClassId): List<ClassId> = metaAnnotations.getOrPut(id) {
         val declaration = classLike(id) as? FirRegularClass
         if (declaration?.classKind != ClassKind.ANNOTATION_CLASS) return@getOrPut emptyList()
+        // The annotations of a Java source are built when they are first read, by looking classes up in the whole
+        // session. That asks the hint generator, which is what is asking. They are left unread here, and
+        // CollectedItemChecker reports the declarations for which it mattered.
+        if (declaration.origin == FirDeclarationOrigin.Java.Source) return@getOrPut emptyList()
         // null for a class of a dependency, whose annotations are resolved
         val file = session.firProvider.getFirClassifierContainerFileIfAny(id)
         val containers = if (file != null) containersOf(id) else emptyList()
@@ -135,9 +142,15 @@ internal class AnnotationResolver(private val session: FirSession) {
         return null
     }
 
-    /** The class or type alias [id]: of this module's sources first (an `actual` wins over its `expect`). */
+    /**
+     * The class or type alias [id]: of this module's sources first (an `actual` wins over its `expect`), Kotlin before
+     * Java, then of the dependencies.
+     */
     private fun classLike(id: ClassId): FirClassLikeDeclaration? =
-        session.firProvider.getFirClassifierByFqName(id) ?: session.dependenciesSymbolProvider.getClassLikeSymbolByClassId(id)?.fir
+        session.firProvider.getFirClassifierByFqName(id)
+            // the Java sources compiled with this module; there is no such provider outside the JVM
+            ?: session.javaSymbolProvider?.getClassLikeSymbolByClassId(id)?.fir
+            ?: session.dependenciesSymbolProvider.getClassLikeSymbolByClassId(id)?.fir
 
     /** Whether [id] exists and code in [file] can name it. A private class of another file does not hide a class. */
     private fun visible(id: ClassId, file: FirFile): Boolean {
