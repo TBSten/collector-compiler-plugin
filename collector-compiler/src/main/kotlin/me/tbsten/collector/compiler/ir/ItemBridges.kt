@@ -24,6 +24,7 @@ import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
 import org.jetbrains.kotlin.ir.expressions.IrExpression
 import org.jetbrains.kotlin.ir.util.defaultType
 import org.jetbrains.kotlin.ir.util.file
+import org.jetbrains.kotlin.ir.util.isObject
 import org.jetbrains.kotlin.ir.util.parentAsClass
 import org.jetbrains.kotlin.name.Name
 
@@ -40,18 +41,19 @@ internal class ItemBridges(private val context: IrPluginContext) {
      * A bridge for the holder member [holderFn] that returns [body], built next to [target], or null when none is
      * needed: the holder can then evaluate [body] itself.
      *
-     * - When [target] is private, the bridge is declared where [target] is: in its file, or in the object it is a
-     *   member of.
+     * - When [target] is private, the bridge is declared where [target] is: in its object, or else in its file.
      * - When a class around [target] is private, the holder can not reach a bridge inside it either, so a bridge in the
      *   file calls on.
      */
     fun bridgeFor(holderFn: IrSimpleFunction, target: IrDeclaration, body: IrBuilderWithScope.() -> IrExpression): IrSimpleFunction? {
+        val owner = target.parent as? IrClass
         var bridge: IrSimpleFunction? = null
         if (target.isPrivate()) {
-            bridge = newBridge(holderFn, target.parent as IrDeclarationContainer, target, body)
+            // a class that is not an object has no instance to call a member bridge on
+            bridge = newBridge(holderFn, owner?.takeIf { it.isObject } ?: target.file, target, body)
         }
-        val hidden = generateSequence(target.parent as? IrClass) { it.parent as? IrClass }.any { it.isPrivate() }
-        if (hidden) {
+        val hidden = generateSequence(owner) { it.parent as? IrClass }.any { it.isPrivate() }
+        if (hidden && bridge?.parent !is IrFile) {
             val inner = bridge
             bridge = newBridge(holderFn, target.file, target) { if (inner != null) call(inner) else body() }
         }
