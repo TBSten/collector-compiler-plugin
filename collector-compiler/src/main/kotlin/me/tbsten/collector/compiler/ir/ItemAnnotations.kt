@@ -24,20 +24,32 @@ import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
 import org.jetbrains.kotlin.ir.visitors.acceptVoid
 
 /** Builds the bodies of `annotations_<X>()`: the X annotations of an item as a list. */
-internal class ItemAnnotations(private val context: IrPluginContext, private val symbols: CollectorSymbols) {
+internal class ItemAnnotations(
+    private val context: IrPluginContext,
+    private val symbols: CollectorSymbols,
+    private val bridges: ItemBridges,
+) {
     /**
-     * Gives the holder member [holderFn], declared as `annotations_<X>(): List<X>`, the body `return listOf(X(…), …)`:
-     * copies of the X annotations on [target], in source order, with meta-annotations expanded in place.
+     * Gives the holder member [holderFn], declared as `annotations_<X>(): List<X>`, the body `return <bridge>()`. The
+     * bridge, next to [target], returns `listOf(X(…), …)`: copies of the X annotations on [target], in source order,
+     * with meta-annotations expanded in place.
+     *
+     * The annotations are built where they were written. What their arguments refer to is visible there (a private
+     * class, a private annotation class), and the classes the JVM backend generates to implement them end up in a
+     * real file: in the holder's file, which has no lines, the default values of an annotation of the same module
+     * trip the backend's line number assertion.
      */
     fun fill(holderFn: IrSimpleFunction, target: IrDeclaration) {
         val elementType = (holderFn.returnType as IrSimpleType).arguments.single().typeOrFail
         val annotations = target.annotationsOfType(annotationClass(holderFn))
+        val bridge = bridges.bridgeFor(holderFn, target, always = true) {
+            irCall(symbols.listOf, holderFn.returnType, typeArguments = listOf(elementType)).apply {
+                val parent = scope.getLocalDeclarationParent()
+                arguments[0] = irVararg(elementType, annotations.map { it.deepCopyWithSymbols(parent).withoutOffsets() })
+            }
+        } ?: error("Collector: no bridge for ${holderFn.name}")
         holderFn.body = DeclarationIrBuilder(context, holderFn.symbol).irBlockBody {
-            +irReturn(
-                irCall(symbols.listOf, holderFn.returnType, typeArguments = listOf(elementType)).apply {
-                    arguments[0] = irVararg(elementType, annotations.map { it.deepCopyWithSymbols(holderFn).withoutOffsets() })
-                },
-            )
+            +irReturn(with(bridges) { call(bridge) })
         }
     }
 
@@ -47,8 +59,8 @@ internal class ItemAnnotations(private val context: IrPluginContext, private val
             ?: error("Collector: ${holderFn.name} does not return a list of annotations")
 
     /**
-     * The copied annotation keeps offsets of the item's file, which mean nothing in the holder's file (the JVM
-     * line-number mapper asserts on them), so drop them.
+     * A copied annotation keeps its offsets, which for one that comes from a meta-annotation are those of another
+     * file. They are of no use, and the JVM line number mapper asserts on offsets that are not of its file: drop them.
      */
     private fun <E : IrElement> E.withoutOffsets(): E = apply {
         acceptVoid(object : IrVisitorVoid() {

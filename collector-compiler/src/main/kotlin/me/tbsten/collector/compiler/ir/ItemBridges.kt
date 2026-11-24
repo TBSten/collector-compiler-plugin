@@ -31,8 +31,9 @@ import org.jetbrains.kotlin.name.Name
 /**
  * Bridges: internal functions the plugin adds next to an item, for what its holder can not do from its own file.
  *
- * A holder lives in `collector.hints`, in a file of its own, and can not reach private declarations (JVM access
- * checks, file-local klib signatures). A bridge does the work where the item is declared, and the holder only calls it.
+ * A holder lives in `collector.hints`, in a synthetic file. It can not reach private declarations (JVM access checks,
+ * file-local klib signatures), and code that belongs to the item's file is out of place in it. A bridge does the work
+ * where the item is declared, and the holder only calls it.
  */
 internal class ItemBridges(private val context: IrPluginContext) {
     private val pending = mutableListOf<Pair<IrDeclarationContainer, IrSimpleFunction>>()
@@ -41,14 +42,20 @@ internal class ItemBridges(private val context: IrPluginContext) {
      * A bridge for the holder member [holderFn] that returns [body], built next to [target], or null when none is
      * needed: the holder can then evaluate [body] itself.
      *
-     * - When [target] is private, the bridge is declared where [target] is: in its object, or else in its file.
+     * - With [always], or when [target] is private, the bridge is declared where [target] is: in its object, or else
+     *   in its file.
      * - When a class around [target] is private, the holder can not reach a bridge inside it either, so a bridge in the
      *   file calls on.
      */
-    fun bridgeFor(holderFn: IrSimpleFunction, target: IrDeclaration, body: IrBuilderWithScope.() -> IrExpression): IrSimpleFunction? {
+    fun bridgeFor(
+        holderFn: IrSimpleFunction,
+        target: IrDeclaration,
+        always: Boolean = false,
+        body: IrBuilderWithScope.() -> IrExpression,
+    ): IrSimpleFunction? {
         val owner = target.parent as? IrClass
         var bridge: IrSimpleFunction? = null
-        if (target.isPrivate()) {
+        if (always || target.isPrivate()) {
             // a class that is not an object has no instance to call a member bridge on
             bridge = newBridge(holderFn, owner?.takeIf { it.isObject } ?: target.file, target, body)
         }

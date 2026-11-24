@@ -25,7 +25,7 @@ internal class HintBodyGenerator(
 ) {
     private val bridges = ItemBridges(context)
     private val conversion = ItemConversion(context, bridges)
-    private val annotations = ItemAnnotations(context, symbols)
+    private val annotations = ItemAnnotations(context, symbols, bridges)
     private val declarations = ItemDeclarations(module)
 
     fun generate() {
