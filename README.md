@@ -136,6 +136,9 @@ val byPath: Map<Screen, Page> = ScreenCollector.collectAsMap()   // 同じキー
   - 例外として、**外側のクラスの親クラスにネストしたアノテーションを単純名で書いた場合**だけはプラグインが追えず、エラー（`ANNOTATION_MISREAD`）になる。`@Base.FromSuper` のように親クラス名から書けば集まる。
 - Java で宣言したアノテーションも集められる（同じモジュールの Java ソースでも、ライブラリのものでもよい）。アイテムになるのは Kotlin の宣言だけで、Java のクラスやメソッドに付けても集まらない。
   - **同じモジュールの Java ソースで宣言したアノテーションクラスは、メタアノテーションとしては使えない。** そのクラスに付いたアノテーションをプラグインが読めないので、エラー（`META_ANNOTATION_IN_JAVA_SOURCE`）になる。Kotlin で宣言するか、別のモジュールに置く（別モジュールの Java のものはメタアノテーションとして使える）。
+- メタアノテーションに付けた X は、そのメタアノテーションを使うモジュールが読み、引数はアイテムのあるファイルで組み立て直す。そのため次の 2 つは宣言の時点で知らせる。
+  - **X が `@Retention(SOURCE)` だと、コンパイル後のメタアノテーションに X が残らない。** ほかのモジュールでそのメタアノテーションを付けた宣言は集まらないので、公開されたメタアノテーションには警告（`META_ANNOTATION_SOURCE_RETENTION`）を出す。X を BINARY か RUNTIME にするか、X を直接付ける。
+  - **X の引数から private なクラスは参照できない**（`@X(Hidden::class) annotation class M`）。アイテムのファイルからは見えないので、エラー（`META_ANNOTATION_PRIVATE_ARGUMENT`）にしている。メタアノテーション自体が private なら同じファイルでしか使えないので問題ない。
 
 ## コンパイルエラーと警告
 
@@ -150,11 +153,13 @@ val byPath: Map<Screen, Page> = ScreenCollector.collectAsMap()   // 同じキー
 | `COLLECTOR_FOR_NOT_ANNOTATION_CLASS` / `COLLECTOR_FOR_GENERIC_ANNOTATION` | `@CollectorFor<X>` の X が annotation class でない（`Nothing`、`Annotation`）/ 型パラメータを持つ annotation class（型引数の違いは区別しないため、集められない） |
 | `ANNOTATION_MISREAD` | アノテーションをプラグインがコンパイラと違うクラスに読んだ（上の制約を参照）。完全修飾名で書くか、明示的に import する |
 | `META_ANNOTATION_IN_JAVA_SOURCE` | 同じモジュールの Java ソースで宣言したアノテーションクラスを、メタアノテーションとして使った |
+| `META_ANNOTATION_PRIVATE_ARGUMENT` | メタアノテーションに付けた X の引数が private なクラスを参照している |
 | `ITEM_NOT_ALLOWED_HERE` / `ITEM_NAME_CLASH` | 付けられない場所 / 1 つのファイルか object の中に同じ名前の宣言が 2 つ（オーバーロード、同名の関数とプロパティ） |
 | `HINT_FORMAT_MISMATCH` | 別バージョンの Collector でビルドされたモジュール |
 | `ITEM_NOT_CONVERTIBLE`（警告） | どの Collector の T にも変換できない |
 | `ITEM_ANNOTATION_ONLY_ON_ACTUAL`（警告） | expect がアイテムの宣言で、actual にだけ付けたアノテーションがある（集められない） |
 | `COLLECT_MISSED_ITEMS`（警告） | その Collector が見えないモジュールやソースセットで付けられ、集められなかった宣言がある |
+| `META_ANNOTATION_SOURCE_RETENTION`（警告） | 公開されたメタアノテーションに付けた X が SOURCE retention（ほかのモジュールからは見えない） |
 | `COLLECTOR_FOR_DUPLICATE`（警告） | 同じ `@CollectorFor<X>` の重複 |
 
 ## モジュール
