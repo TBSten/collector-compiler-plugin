@@ -23,7 +23,8 @@ internal class HintBodyGenerator(
     private val symbols: CollectorSymbols,
     private val module: IrModuleFragment,
 ) {
-    private val conversion = ItemConversion(context)
+    private val bridges = ItemBridges(context)
+    private val conversion = ItemConversion(context, bridges)
     private val annotations = ItemAnnotations(context, symbols)
     private val declarations = ItemDeclarations(module)
 
@@ -41,7 +42,7 @@ internal class HintBodyGenerator(
                 }
             }
         }
-        conversion.addBridges()
+        bridges.addAll()
     }
 
     private fun fillHolder(holder: IrClass) {
