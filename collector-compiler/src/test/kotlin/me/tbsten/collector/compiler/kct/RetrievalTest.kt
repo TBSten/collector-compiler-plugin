@@ -51,6 +51,17 @@ class RetrievalTest {
         assertEquals(listOf(emptyList<String>(), listOf("A", "B", "D"), true, true), result)
     }
 
+    /** D4: lazyCollectAsSequence puts the item lambdas under the wrong parent (IR validation error). */
+    @Test
+    fun d4_lazySequence() {
+        val files = arrayOf(logDefs, loggingItems, boxFile("C.lazyCollectAsSequence().value.map { it.toString().substringBefore('@') }.toList()"))
+        val verified = compile(Module("main", files.toMap()))
+        knownBug("D4: lazyCollectAsSequence creates the item lambdas with the wrong parent (IR validation error)") {
+            verified.requireOk()
+        }
+        assertEquals(listOf("items.A", "items.B", "items.D"), compile(Module("main", files.toMap(), verifyIr = false)).box())
+    }
+
     /** D5: collectAsSet keeps the first of equal items, in order. */
     @Test
     fun d5_setOfEqualItems() {
