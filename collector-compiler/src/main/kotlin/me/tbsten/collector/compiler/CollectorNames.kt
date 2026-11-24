@@ -72,4 +72,6 @@ internal object CollectorNames {
         Name.identifier(AS_PREFIX + HintNameEncoding.encode(collector.asFqNameString()))
 
     val COLLECTOR_INTERNALS = ClassId(FqName("me.tbsten.collector.internal"), Name.identifier("CollectorInternals"))
+
+    val COMPOSABLE = ClassId(FqName("androidx.compose.runtime"), Name.identifier("Composable"))
 }
