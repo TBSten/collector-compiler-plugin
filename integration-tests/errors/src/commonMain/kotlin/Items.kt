@@ -40,3 +40,9 @@ object ClashHolder {
 @CollectorFor<Conv>() class NotAnObject : Collector<Shape> // E: COLLECTOR_FOR_NOT_OBJECT
 
 @CollectorFor<Conv>() object NotACollectorObject // E: COLLECTOR_FOR_NOT_COLLECTOR
+
+// X of @CollectorFor<X> must be an annotation class, without type parameters (their arguments are not told apart)
+annotation class Generic<T>
+@CollectorFor<Generic<String>>() object GenericCollector : Collector<String> // E: COLLECTOR_FOR_GENERIC_ANNOTATION
+@CollectorFor<Nothing>() object NothingCollector : Collector<String> // E: COLLECTOR_FOR_NOT_ANNOTATION_CLASS
+@CollectorFor<Annotation>() object AnyAnnotationCollector : Collector<String> // E: COLLECTOR_FOR_NOT_ANNOTATION_CLASS
