@@ -40,3 +40,16 @@ annotation class Reflected
 @CollectorFor<Reflected>() object ReflectedCollector : Collector<kotlin.reflect.KFunction1<Int, Int>>
 
 @Reflected fun increment(a: Int): Int = a + 1 // W: ITEM_NOT_CONVERTIBLE
+
+// An annotation with SOURCE retention is not kept on a compiled annotation class: a module that uses the
+// meta-annotation does not see it, and collects nothing through it.
+@Retention(AnnotationRetention.SOURCE) annotation class SourceOnly
+
+@CollectorFor<SourceOnly>() object SourceOnlyCollector : Collector<Any>
+
+@SourceOnly annotation class ThroughSourceOnly // W: META_ANNOTATION_SOURCE_RETENTION
+
+@SourceOnly internal annotation class ThroughSourceOnlyInThisModule // only used where its source is read
+
+@ThroughSourceOnly @ThroughSourceOnlyInThisModule val sourceOnly = "collected in this module"
+
