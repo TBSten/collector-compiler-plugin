@@ -108,7 +108,7 @@ val all by XCollector.lazyCollectAsList()   // 上のすべてに lazy 版があ
 val plugins = collectAsList<Plugin>("plugins")   // 同じタグの Collector を全部まとめる（重複は 1 件に）
 ```
 
-- `@CollectorFor` の `tag` には文字列リテラルだけを書ける。呼び出し側のタグは const val でもよい。
+- `@CollectorFor` の `tag` には文字列リテラルだけを書ける。呼び出し側のタグは const val や、それらを `+` や文字列テンプレートでつないだものでもよい（`PREFIX + "x"`、`"${PREFIX}x"`）。
 - 同じタグの全 Collector の T が、要求した型のサブタイプである必要がある。
 - Collector が 1 つもないタグは空になる（`collectSingle` はエラー、`collectSingleOrNull` は null）。
 
