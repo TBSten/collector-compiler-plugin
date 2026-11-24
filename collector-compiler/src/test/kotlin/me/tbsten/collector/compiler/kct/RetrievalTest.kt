@@ -133,11 +133,8 @@ class RetrievalTest {
                 Flags.lazyCollectAsMap<Flag, Any>().value.size,
             )"""),
         )
-        val verified = compile(Module("main", files.toMap()))
-        knownBug("D7: collectWithAnnotation builds Pair(...) with Pair's own type parameters (IR validation error)") {
-            verified.requireOk()
-        }
-        val result = compile(Module("main", files.toMap(), verifyIr = false)).box()
+        // the pairs are built with the call site's types (they once failed IR validation)
+        val result = compile(Module("main", files.toMap())).box()
         assertEquals(
             listOf(
                 listOf("beta=Beta", "beta-2=Beta", "dark-mode=DarkMode"),
