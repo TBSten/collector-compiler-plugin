@@ -64,6 +64,26 @@ class DiagnosticMessagesTest {
                 @Z object NotAPlugin
             """,
         ))
+        val definitions = compile("main", files = arrayOf(
+            "Definitions.kt" to """
+                import me.tbsten.collector.*
+                annotation class Generic<T>
+                @CollectorFor<Generic<String>>() object GenericCollector : Collector<String>
+                @CollectorFor<Nothing>() object NothingCollector : Collector<String>
+                annotation class Linked(val to: kotlin.reflect.KClass<*> = Any::class)
+                @CollectorFor<Linked>() object LinkedCollector : Collector<Any>
+                private class HiddenTarget
+                @Linked(HiddenTarget::class) annotation class LinkedToHidden
+            """,
+        ))
+        val sourceRetention = compile("main", files = arrayOf(
+            "SourceRetention.kt" to """
+                import me.tbsten.collector.*
+                @Retention(AnnotationRetention.SOURCE) annotation class SourceOnly
+                @CollectorFor<SourceOnly>() object SourceOnlyCollector : Collector<Any>
+                @SourceOnly annotation class ThroughSourceOnly
+            """,
+        ))
         val java = compile("main", files = arrayOf(
             defs,
             "defs/JavaMeta.java" to """
@@ -73,7 +93,7 @@ class DiagnosticMessagesTest {
             """,
             "JavaItems.kt" to "@defs.JavaMeta object ThroughJava : defs.Plugin",
         ))
-        val actual = (errors.messages + warnings.messages + java.messages).lines()
+        val actual = (errors.messages + warnings.messages + definitions.messages + sourceRetention.messages + java.messages).lines()
             .mapNotNull { Regex("""^([ew]): \S+ \[([A-Z_]+)] (.*)$""").find(it) }
             // severity left out: ITEM_NOT_CONVERTIBLE's is undecided (D1); the other tests check severities
             .map { m -> "${m.groupValues[2]}: ${m.groupValues[3]}" }
@@ -88,6 +108,8 @@ class DiagnosticMessagesTest {
             "COLLECT_TAG_TYPE_MISMATCH", "COLLECT_ANNOTATION_TYPE_MISMATCH", "COLLECT_AS_MAP_DUPLICATE_KEY", "COLLECT_CALLABLE_REFERENCE",
             "COLLECTOR_FOR_TAG_NOT_LITERAL", "COLLECTOR_FOR_NOT_OBJECT", "COLLECTOR_FOR_NOT_COLLECTOR", "COLLECTOR_FOR_DUPLICATE",
             "ITEM_NOT_ALLOWED_HERE", "ITEM_NAME_CLASH", "ITEM_NOT_CONVERTIBLE", "META_ANNOTATION_IN_JAVA_SOURCE",
+            "COLLECTOR_FOR_GENERIC_ANNOTATION", "COLLECTOR_FOR_NOT_ANNOTATION_CLASS", "META_ANNOTATION_PRIVATE_ARGUMENT",
+            "META_ANNOTATION_SOURCE_RETENTION",
         )
         assertTrue(ids.containsAll(expectedIds), "missing: ${expectedIds - ids}")
     }

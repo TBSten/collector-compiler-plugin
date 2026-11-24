@@ -1,4 +1,6 @@
 COLLECTOR_FOR_DUPLICATE: @CollectorFor<Y> is repeated on the same object.
+COLLECTOR_FOR_GENERIC_ANNOTATION: Generic has type parameters. Collector does not tell the type arguments of an annotation apart, so annotation classes with type parameters can not be collected.
+COLLECTOR_FOR_NOT_ANNOTATION_CLASS: kotlin.Nothing is not an annotation class, so no declaration can be annotated with it.
 COLLECTOR_FOR_NOT_COLLECTOR: An object annotated with @CollectorFor must implement Collector<T>.
 COLLECTOR_FOR_NOT_OBJECT: @CollectorFor can only be used on an object.
 COLLECTOR_FOR_TAG_NOT_LITERAL: The tag of @CollectorFor must be a string literal.
@@ -7,10 +9,12 @@ COLLECT_AS_MAP_DUPLICATE_KEY: collectAsMap() would have the same key twice: Flag
 COLLECT_CALLABLE_REFERENCE: Collect functions can not be referenced; call them directly (the call is replaced at compile time).
 COLLECT_SINGLE_COUNT: collectSingle() needs exactly one item, but 2 items were found (P1, P2). Use collectSingleOrNull() or collectAsList() instead.
 COLLECT_SINGLE_OR_NULL_COUNT: collectSingleOrNull() allows at most one item, but 2 items were found (P1, P2). Use collectAsList() instead.
-COLLECT_TAG_NOT_CONSTANT: The tag must be a compile-time constant (a string literal or a const val).
+COLLECT_TAG_NOT_CONSTANT: The tag must be a constant string: a string literal, a const val, or those joined with + or in a string template.
 COLLECT_TAG_TYPE_MISMATCH: Every Collector with this tag must collect a subtype of the requested type, but these do not: Tagged (Collector<Plugin>).
 ITEM_NAME_CLASH: Collected declarations of a file or of an object must have distinct names, but f is used more than once (overloads are not supported).
 ITEM_NOT_ALLOWED_HERE: This declaration can not be collected: members of Holder need an instance; move it into an object or to the top level.
 ITEM_NOT_CONVERTIBLE: No Collector visible here can collect this declaration, so it is skipped: Zs: object NotAPlugin is neither a subtype of T, its KClass nor () -> it.
 META_ANNOTATION_IN_JAVA_SOURCE: @JavaMeta is declared in a Java source of this module, where Collector can not read the annotations on it, so this declaration is not collected through it. Declare it in Kotlin or in another module, or annotate this declaration directly.
+META_ANNOTATION_PRIVATE_ARGUMENT: The arguments of @Linked are built again where this annotation class is used, where HiddenTarget can not be reached. Make it internal or public, or make this annotation class private.
+META_ANNOTATION_SOURCE_RETENTION: @SourceOnly has SOURCE retention, so it is not kept on this annotation class once compiled: declarations of other modules annotated with this annotation class are not collected. Give @SourceOnly BINARY or RUNTIME retention, or annotate those declarations with @SourceOnly directly.
 RECEIVER_NOT_COLLECTOR_OBJECT: The receiver of collect functions must be a direct reference to an object annotated with @CollectorFor.
