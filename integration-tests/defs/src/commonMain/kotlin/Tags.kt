@@ -39,3 +39,8 @@ annotation class Sample(val name: String)
 
 @CollectorFor<Sample>()
 object SampleCollector : Collector<() -> String>
+
+// one Collector under two tags (COLLECTOR_FOR_DUPLICATE warns about the repeated annotation; both tags work)
+@CollectorFor<Solo>(tag = "solo-a")
+@CollectorFor<Solo>(tag = "solo-b")
+object SoloTwiceCollector : Collector<Plugin>

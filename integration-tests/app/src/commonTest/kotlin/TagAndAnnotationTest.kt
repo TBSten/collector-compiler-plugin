@@ -34,6 +34,12 @@ class TagAndAnnotationTest {
     fun singleByTag() = assertEquals("only", collectSingle<Plugin>(tag = "solo").id)
 
     @Test
+    fun oneCollectorUnderTwoTags() {
+        assertEquals("only", collectSingle<Plugin>(tag = "solo-a").id)
+        assertEquals("only", collectSingle<Plugin>(tag = "solo-b").id)
+    }
+
+    @Test
     fun repeatableCollectorFor() =
         assertEquals(listOf("alpha", "beta", "both"), AllPluginsCollector.collectAsList().map { it.id })
 
