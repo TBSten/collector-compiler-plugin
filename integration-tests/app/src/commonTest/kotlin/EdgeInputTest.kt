@@ -19,7 +19,14 @@ class EdgeInputTest {
     fun enumEntriesAreCollectedLikeObjects() {
         // FQN order: edge.Color.BLUE, edge.Color.RED, then the actual of edge.PlatformTint (items2)
         assertEquals(listOf(Color.BLUE, Color.RED, edge.PlatformTint), PaletteCollector.collectAsList())
-        assertEquals(listOf(Color.BLUE, Color.RED, edge.PlatformTint), PaletteFactoryCollector.collectAsList().map { it() })
+    }
+
+    /** Whether the expect declaration, the actual one or both carry the annotation, they are one item. */
+    @Test
+    fun expectAndActualAreOneItem() {
+        // edge.PlatformTint, then the functions edge.tintOnActual and edge.tintOnBoth, which return it
+        val tint = edge.PlatformTint
+        assertEquals(listOf(Color.BLUE, Color.RED, tint, tint, tint), PaletteFactoryCollector.collectAsList().map { it() })
     }
 
     @Test

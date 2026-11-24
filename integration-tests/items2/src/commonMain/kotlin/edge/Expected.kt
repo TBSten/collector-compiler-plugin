@@ -6,3 +6,10 @@ import defs.Tinted
 // spec 06+: an annotated expect declaration is collected once, as its actual
 @Palette
 expect object PlatformTint : Tinted
+
+// annotated on both sides, as Kotlin asks for (ACTUAL_ANNOTATIONS_NOT_MATCH_EXPECT): still one item
+@Palette
+expect fun tintOnBoth(): Tinted
+
+// annotated on the actual side only
+expect fun tintOnActual(): Tinted
