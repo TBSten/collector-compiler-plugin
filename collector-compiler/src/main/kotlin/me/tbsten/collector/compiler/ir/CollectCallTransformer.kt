@@ -9,7 +9,6 @@ import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.backend.common.lower.DeclarationIrBuilder
 import org.jetbrains.kotlin.ir.builders.IrBuilderWithScope
 import org.jetbrains.kotlin.ir.builders.irCall
-import org.jetbrains.kotlin.ir.builders.irCallConstructor
 import org.jetbrains.kotlin.ir.builders.irGetObject
 import org.jetbrains.kotlin.ir.builders.irNull
 import org.jetbrains.kotlin.ir.builders.irVararg
@@ -112,7 +111,10 @@ internal class CollectCallTransformer(
         val pairs = entries.flatMap { e ->
             e.annotations.mapNotNull { x ->
                 val annotationsFn = e.holder.owner.functions.firstOrNull { it.name == CollectorNames.annotationsFunction(x) } ?: return@mapNotNull null
-                b.irCallConstructor(symbols.pair.owner.primaryConstructor!!.symbol, listOf(listOfA, t)).apply {
+                // not irCallConstructor(): it types the call as Pair<A, B>, with the type parameters of Pair itself
+                b.irCall(symbols.pair.owner.primaryConstructor!!.symbol, pairType).apply {
+                    this.typeArguments[0] = listOfA
+                    this.typeArguments[1] = t
                     arguments[0] = b.irCall(annotationsFn.symbol).apply { arguments[0] = b.irGetObject(e.holder) }
                     arguments[1] = value(b, e)
                 }
