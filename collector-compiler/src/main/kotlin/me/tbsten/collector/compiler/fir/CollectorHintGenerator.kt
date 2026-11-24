@@ -18,8 +18,6 @@ import org.jetbrains.kotlin.fir.symbols.impl.FirClassLikeSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirClassSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirConstructorSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirNamedFunctionSymbol
-import org.jetbrains.kotlin.fir.types.classId
-import org.jetbrains.kotlin.fir.types.coneTypeOrNull
 import org.jetbrains.kotlin.fir.types.constructClassLikeType
 import org.jetbrains.kotlin.name.CallableId
 import org.jetbrains.kotlin.name.ClassId
@@ -107,8 +105,7 @@ class CollectorHintGenerator(session: FirSession) : FirDeclarationGenerationExte
     private fun annotationsFunction(owner: FirClassSymbol<*>, item: ItemDef, x: ClassId): FirNamedFunctionSymbol {
         val type = StandardClassIds.List.constructClassLikeType(arrayOf(x.constructClassLikeType()))
         val function = createMemberFunction(owner, CollectorPluginKey, CollectorNames.annotationsFunction(x), type)
-        val copies = item.declaration.annotations
-            .filter { it.annotatesDeclaration() && it.annotationTypeRef.coneTypeOrNull?.classId == x }
+        val copies = annotationsOfType(session, item.declaration.annotations.filter { it.annotatesDeclaration() }, x)
             .map { buildAnnotationCopy(it) { useSiteTarget = null } }
         function.replaceAnnotations(copies)
         return function.symbol
