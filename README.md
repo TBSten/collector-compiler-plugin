@@ -58,6 +58,8 @@ object XCollector : Collector<T>  // T: 取り出すときの型
 | トップレベル・object 内の関数、拡張関数 | ― | `{ a -> fn(a) }`（拡張関数型・suspend・@Composable も可） | ― |
 
 - private な宣言も集められる（公開用の橋渡し関数が生成される）。
+- class を作るときに呼ぶコンストラクタは public か internal のものだけ（private・protected は対象外）。
+- `Any` のようにインスタンスも `KClass` も受け取れる T では、作れる class はインスタンスになり、作れないもの（interface や、呼べるコンストラクタのない class）は `Cls::class` になる。
 - class のメンバー、inner class、ローカル宣言、引数、型エイリアスには付けられない（エラー）。
 - 変換できない組み合わせは、その Collector では集めない。見えているどの Collector にも合わなければ警告。
 - 細かい入力の扱い:
