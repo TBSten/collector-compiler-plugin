@@ -64,7 +64,16 @@ class DiagnosticMessagesTest {
                 @Z object NotAPlugin
             """,
         ))
-        val actual = (errors.messages + warnings.messages).lines()
+        val java = compile("main", files = arrayOf(
+            defs,
+            "defs/JavaMeta.java" to """
+                package defs;
+                @defs.E
+                public @interface JavaMeta {}
+            """,
+            "JavaItems.kt" to "@defs.JavaMeta object ThroughJava : defs.Plugin",
+        ))
+        val actual = (errors.messages + warnings.messages + java.messages).lines()
             .mapNotNull { Regex("""^([ew]): \S+ \[([A-Z_]+)] (.*)$""").find(it) }
             // severity left out: ITEM_NOT_CONVERTIBLE's is undecided (D1); the other tests check severities
             .map { m -> "${m.groupValues[2]}: ${m.groupValues[3]}" }
@@ -73,11 +82,12 @@ class DiagnosticMessagesTest {
         assertEquals(golden.readText(), actual)
         val ids = actual.lines().filter { it.isNotBlank() }.map { it.substringBefore(":") }.toSet()
         // every diagnostic of the plugin except the ones needing other modules (HINT_FORMAT_MISMATCH, COLLECT_MISSED_ITEMS)
+        // or expect/actual (ITEM_ANNOTATION_ONLY_ON_ACTUAL, covered by integration-tests)
         val expectedIds = setOf(
             "RECEIVER_NOT_COLLECTOR_OBJECT", "COLLECT_SINGLE_COUNT", "COLLECT_SINGLE_OR_NULL_COUNT", "COLLECT_TAG_NOT_CONSTANT",
             "COLLECT_TAG_TYPE_MISMATCH", "COLLECT_ANNOTATION_TYPE_MISMATCH", "COLLECT_AS_MAP_DUPLICATE_KEY", "COLLECT_CALLABLE_REFERENCE",
             "COLLECTOR_FOR_TAG_NOT_LITERAL", "COLLECTOR_FOR_NOT_OBJECT", "COLLECTOR_FOR_NOT_COLLECTOR", "COLLECTOR_FOR_DUPLICATE",
-            "ITEM_NOT_ALLOWED_HERE", "ITEM_NAME_CLASH", "ITEM_NOT_CONVERTIBLE",
+            "ITEM_NOT_ALLOWED_HERE", "ITEM_NAME_CLASH", "ITEM_NOT_CONVERTIBLE", "META_ANNOTATION_IN_JAVA_SOURCE",
         )
         assertTrue(ids.containsAll(expectedIds), "missing: ${expectedIds - ids}")
     }

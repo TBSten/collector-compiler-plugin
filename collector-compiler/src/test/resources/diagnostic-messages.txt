@@ -12,4 +12,5 @@ COLLECT_TAG_TYPE_MISMATCH: Every Collector with this tag must collect a subtype 
 ITEM_NAME_CLASH: Collected declarations of a file or of an object must have distinct names, but f is used more than once (overloads are not supported).
 ITEM_NOT_ALLOWED_HERE: This declaration can not be collected: members of Holder need an instance; move it into an object or to the top level.
 ITEM_NOT_CONVERTIBLE: No Collector visible here can collect this declaration, so it is skipped: Zs: object NotAPlugin is neither a subtype of T, its KClass nor () -> it.
+META_ANNOTATION_IN_JAVA_SOURCE: @JavaMeta is declared in a Java source of this module, where Collector can not read the annotations on it, so this declaration is not collected through it. Declare it in Kotlin or in another module, or annotate this declaration directly.
 RECEIVER_NOT_COLLECTOR_OBJECT: The receiver of collect functions must be a direct reference to an object annotated with @CollectorFor.

@@ -71,7 +71,9 @@ fun compile(module: Module): Compiled {
     val result = KotlinCompilation().apply {
         workingDir = dir
         moduleName = module.name
-        sources = module.files.map { (path, src) -> SourceFile.kotlin(path, src.trimIndent()) }
+        sources = module.files.map { (path, src) ->
+            if (path.endsWith(".java")) SourceFile.java(path, src.trimIndent()) else SourceFile.kotlin(path, src.trimIndent())
+        }
         if (module.plugin) {
             compilerPluginRegistrars = listOf(CollectorCompilerPluginRegistrar())
             commandLineProcessors = listOf(CollectorCommandLineProcessor())
