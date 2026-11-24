@@ -16,6 +16,8 @@ internal class CollectedEntry(
     val fqName: String,
     /** `as_<enc(C)>()` on the holder. */
     val asFunction: IrSimpleFunctionSymbol,
+    /** Annotations X the item is collected through (for collectWithAnnotation / collectAsMap). */
+    val annotations: List<ClassId>,
 )
 
 /**
@@ -38,13 +40,23 @@ internal class HintDiscovery(private val finder: DeclarationFinder) {
             .distinct()
         val asName = CollectorNames.asFunction(collector)
         // item_<X>(i: Item_…): the holders of the items annotated with X
-        return xs.flatMap { x -> finder.findFunctions(CollectorNames.itemHint(x)) }
-            .mapNotNull { it.owner.parameters.firstOrNull()?.type?.classOrNull }
-            .distinct()
-            .mapNotNull { holder ->
+        return xs.flatMap { x -> finder.findFunctions(CollectorNames.itemHint(x)).map { x to it } }
+            .mapNotNull { (x, hint) -> hint.owner.parameters.firstOrNull()?.type?.classOrNull?.let { x to it } }
+            .groupBy({ it.second }, { it.first })
+            .mapNotNull { (holder, annotations) ->
                 val fn = holder.owner.functions.firstOrNull { it.name == asName } ?: return@mapNotNull null
-                CollectedEntry(holder, CollectorNames.decodeHolderName(holder.owner.name.asString()), fn.symbol)
+                CollectedEntry(holder, CollectorNames.decodeHolderName(holder.owner.name.asString()), fn.symbol, annotations.distinct())
             }
             .sortedBy { it.fqName }
     }
+
+    /** The items of every Collector tagged [tag], sorted by FQN; an item reached through several of them appears once. */
+    fun entriesForTag(tag: String): List<CollectedEntry> =
+        finder.findFunctions(CollectorNames.collectorTagHint(tag))
+            .mapNotNull { it.owner.parameters.firstOrNull()?.type?.classOrNull?.owner }
+            .distinctBy { it.classId }
+            .sortedBy { it.classId!!.asFqNameString() }
+            .flatMap { entriesFor(it) }
+            .distinctBy { it.holder }
+            .sortedBy { it.fqName }
 }
