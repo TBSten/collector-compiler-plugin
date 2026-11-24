@@ -10,6 +10,10 @@ class Holder {
     @Conv val member: Shape = any // E: ITEM_NOT_ALLOWED_HERE
     @Conv fun memberFunction(name: String): Shape = any // E: ITEM_NOT_ALLOWED_HERE
     @Conv inner class Inner : Shape by any // E: ITEM_NOT_ALLOWED_HERE
+
+    // reported on the name of the declaration, not on the annotations before it
+    @Conv
+    val onTheNextLine: Shape = any // E: ITEM_NOT_ALLOWED_HERE
 }
 
 fun localDeclarations() {
