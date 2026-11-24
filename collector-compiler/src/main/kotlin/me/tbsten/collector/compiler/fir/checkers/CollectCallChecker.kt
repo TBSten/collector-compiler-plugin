@@ -3,6 +3,7 @@ package me.tbsten.collector.compiler.fir.checkers
 import me.tbsten.collector.compiler.fir.CollectorErrors
 import me.tbsten.collector.compiler.fir.collectorElementType
 import me.tbsten.collector.compiler.fir.collectorHints
+import me.tbsten.collector.compiler.fir.collectorIndex
 import me.tbsten.collector.compiler.fir.describeHint
 import me.tbsten.collector.compiler.fir.hasCurrentHintFormat
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
@@ -60,7 +61,7 @@ internal object CollectCallChecker : FirFunctionCallChecker(MppCheckerKind.Commo
         if (missed.isNotEmpty()) reporter.reportOn(source, CollectorErrors.COLLECT_MISSED_ITEMS, missed.joinToString("; "))
         if (call.function.kind.withAnnotations) {
             val a = expression.typeArgument(0) ?: return
-            val mismatched = xs.filter { x -> !x.constructClassLikeType().isSubtypeOf(a, session) }
+            val mismatched = xs.filter { x -> !session.collectorIndex.annotationClassOf(x).constructClassLikeType().isSubtypeOf(a, session) }
             if (mismatched.isNotEmpty()) {
                 reporter.reportOn(source, CollectorErrors.COLLECT_ANNOTATION_TYPE_MISMATCH, mismatched.joinToString { it.asFqNameString() })
             }

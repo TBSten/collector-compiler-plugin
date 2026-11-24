@@ -24,6 +24,11 @@ import org.jetbrains.kotlin.name.ClassId
 /** A `@CollectorFor<X>` on an object. */
 internal data class CollectorDef(
     val collector: ClassId,
+    /**
+     * X as the module of the Collector knows it, type aliases expanded. The hints of the Collector and of its items
+     * are named after it. Another module may see another class behind it (an `expect` annotation with an
+     * `actual typealias`): see [CollectorIndex.annotationClassOf].
+     */
     val annotation: ClassId,
     val symbol: FirClassSymbol<*>,
     /** `tag` of `@CollectorFor`; only known (and only needed) for this module's own Collectors. */
@@ -39,6 +44,8 @@ internal fun FirClassSymbol<*>.collectorElementType(): ConeKotlinType? =
 
 /** The Collectors visible from this module: its own `@CollectorFor` objects and the `collectorFor_` hints on the classpath. */
 class CollectorIndex(session: FirSession) : FirExtensionSessionComponent(session) {
+    internal val annotationResolver = AnnotationResolver(session)
+
     override fun FirDeclarationPredicateRegistrar.registerPredicates() {
         register(COLLECTOR_FOR_PREDICATE)
     }
@@ -64,7 +71,8 @@ class CollectorIndex(session: FirSession) : FirExtensionSessionComponent(session
                 cls.fir.annotations
                     .filter { it.annotationTypeRef.coneTypeOrNull?.classId == CollectorNames.COLLECTOR_FOR }
                     .mapNotNull { ann ->
-                        val x = ann.collectorForTarget()
+                        // the type argument is resolved by now, but an alias of this module is not expanded yet
+                        val x = ann.collectorForTarget()?.let { annotationResolver.expand(it) ?: it }
                         debugLog { "own @CollectorFor on ${cls.classId} -> X=$x" }
                         x?.let { CollectorDef(cls.classId, it, cls, ann.collectorForTag()) }
                     }
@@ -105,10 +113,20 @@ class CollectorIndex(session: FirSession) : FirExtensionSessionComponent(session
         allCollectors.groupBy { it.annotation }
     }
 
-    /** Annotations X that at least one visible Collector collects. */
-    internal val targetAnnotations: Set<ClassId> get() = collectorsByAnnotation.keys
-
     internal fun collectorsFor(annotation: ClassId): List<CollectorDef> = collectorsByAnnotation[annotation].orEmpty()
+
+    /**
+     * The annotation class X is in this module. Almost always X itself; for an `expect` annotation whose `actual` is
+     * a type alias, the class behind the alias in the modules that see the alias.
+     */
+    internal fun annotationClassOf(annotation: ClassId): ClassId = annotationResolver.expand(annotation) ?: annotation
+
+    private val targetsByClass: Map<ClassId, Set<ClassId>> by session.firCachesFactory.createLazyValue {
+        collectorsByAnnotation.keys.groupBy { annotationClassOf(it) }.mapValues { (_, xs) -> xs.toSet() }
+    }
+
+    /** The X's of the visible Collectors that the annotation class [annotationClass] is: empty when none collects it. */
+    internal fun targetsOf(annotationClass: ClassId): Set<ClassId> = targetsByClass[annotationClass].orEmpty()
 
     private companion object {
         val COLLECTOR_FOR_PREDICATE = LookupPredicate.create { annotated(CollectorNames.COLLECTOR_FOR.asSingleFqName()) }

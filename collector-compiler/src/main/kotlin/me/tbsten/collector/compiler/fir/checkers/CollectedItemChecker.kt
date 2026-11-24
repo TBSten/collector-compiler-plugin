@@ -28,7 +28,6 @@ import org.jetbrains.kotlin.fir.resolve.providers.firProvider
 import org.jetbrains.kotlin.fir.symbols.SymbolInternals
 import org.jetbrains.kotlin.fir.symbols.impl.FirFileSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
-import org.jetbrains.kotlin.name.ClassId
 
 /**
  * Checks declarations annotated with an annotation some visible Collector collects: where they are declared, that
@@ -49,14 +48,15 @@ internal object CollectedItemChecker : FirBasicDeclarationChecker(MppCheckerKind
         if (stale.isNotEmpty()) {
             reporter.reportOn(source, CollectorErrors.HINT_FORMAT_MISMATCH, stale.joinToString { it.describeHint() })
         }
-        val annotations = allAnnotations.filterTo(mutableSetOf()) { it in index.targetAnnotations }
+        // the X's of the visible Collectors this declaration is annotated with
+        val annotations = allAnnotations.flatMapTo(mutableSetOf()) { index.targetsOf(it) }
         if (annotations.isEmpty()) return
 
         placementProblem(declaration)?.let {
             reporter.reportOn(source, CollectorErrors.ITEM_NOT_ALLOWED_HERE, it)
             return
         }
-        nameClash(declaration, index.targetAnnotations)?.let {
+        nameClash(declaration)?.let {
             reporter.reportOn(source, CollectorErrors.ITEM_NAME_CLASH, it)
         }
 
@@ -102,14 +102,15 @@ internal object CollectedItemChecker : FirBasicDeclarationChecker(MppCheckerKind
      */
     @OptIn(DirectDeclarationsAccess::class, SymbolInternals::class)
     context(context: CheckerContext)
-    private fun nameClash(declaration: FirDeclaration, targets: Set<ClassId>): String? {
+    private fun nameClash(declaration: FirDeclaration): String? {
         val name = declaration.itemName() ?: return null
         val siblings = when (val owner = context.containingDeclarations.lastOrNull()) {
             is FirRegularClassSymbol -> owner.fir.declarations
             is FirFileSymbol -> context.session.firProvider.getFirFilesByPackage(owner.fir.packageDirective.packageFqName).flatMap { it.declarations }
             else -> return null
         }.filter { it.itemName() == name }
-        fun FirDeclaration.collected() = expandedAnnotationIds(context.session, this).any { it in targets }
+        val index = context.session.collectorIndex
+        fun FirDeclaration.collected() = expandedAnnotationIds(context.session, this).any { index.targetsOf(it).isNotEmpty() }
         val expectCollected = siblings.any { it.isExpect && it.collected() }
         val clashes = siblings.count { !it.isExpect && (it.collected() || (expectCollected && it.isActual)) } +
             if (expectCollected && siblings.none { it.isActual }) 1 else 0

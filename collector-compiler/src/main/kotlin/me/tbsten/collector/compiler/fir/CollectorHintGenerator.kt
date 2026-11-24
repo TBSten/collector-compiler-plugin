@@ -109,9 +109,11 @@ class CollectorHintGenerator(session: FirSession) : FirDeclarationGenerationExte
      * sites can compare their arguments (collectAsMap keys).
      */
     private fun annotationsFunction(owner: FirClassSymbol<*>, item: ItemDef, x: ClassId): FirNamedFunctionSymbol {
-        val type = StandardClassIds.List.constructClassLikeType(arrayOf(x.constructClassLikeType()))
+        // the function is named after X, and typed with the class X is in this module
+        val annotationClass = collectors.annotationClassOf(x)
+        val type = StandardClassIds.List.constructClassLikeType(arrayOf(annotationClass.constructClassLikeType()))
         val function = createMemberFunction(owner, CollectorPluginKey, CollectorNames.annotationsFunction(x), type)
-        val copies = annotationsOfType(session, item.declaration.annotations.filter { it.annotatesDeclaration() }, x)
+        val copies = annotationsOfType(session, item.declaration.annotations.filter { it.annotatesDeclaration() }, annotationClass)
             .map { buildAnnotationCopy(it) { useSiteTarget = null } }
         function.replaceAnnotations(copies)
         return function.symbol

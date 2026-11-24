@@ -17,7 +17,7 @@ import org.jetbrains.kotlin.name.CallableId
 class CollectorItemIndex(session: FirSession, private val moduleName: String) : FirExtensionSessionComponent(session) {
     internal val own: OwnItems by session.firCachesFactory.createLazyValue {
         val inherited = session.moduleData.allDependsOnDependencies.map { it.session.collectorItemIndex.own }
-        ItemScanner(session, moduleName).scan(session.collectorIndex.targetAnnotations, inherited)
+        ItemScanner(session, moduleName, session.collectorIndex).scan(inherited)
     }
 
     internal val hints: Map<CallableId, List<HintSpec>> by session.firCachesFactory.createLazyValue {

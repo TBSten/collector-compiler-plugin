@@ -16,7 +16,6 @@ import org.jetbrains.kotlin.fir.scopes.impl.declaredMemberScope
 import org.jetbrains.kotlin.fir.symbols.impl.FirNamedFunctionSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
 import org.jetbrains.kotlin.fir.types.classId
-import org.jetbrains.kotlin.fir.types.coneTypeOrNull
 import org.jetbrains.kotlin.name.CallableId
 import org.jetbrains.kotlin.name.ClassId
 
@@ -92,10 +91,9 @@ class CollectorHints(session: FirSession) : FirExtensionSessionComponent(session
                 val identity = holder.itemIdentity() ?: continue
                 val scope = session.declaredMemberScope(holder, null)
                 if (scope.getFunctions(asName).isEmpty()) continue
+                // annotations_<X>() carries copies of the X annotations of the item, and nothing else
                 val annotations = xs.flatMap { x ->
-                    scope.getFunctions(CollectorNames.annotationsFunction(x)).flatMap { fn ->
-                        fn.resolvedAnnotationsWithArguments.filter { it.annotationTypeRef.coneTypeOrNull?.classId == x }
-                    }
+                    scope.getFunctions(CollectorNames.annotationsFunction(x)).flatMap { it.resolvedAnnotationsWithArguments }
                 }
                 result[holderId] = VisibleItem(identity, annotations)
             }
