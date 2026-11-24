@@ -4,6 +4,7 @@ import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.caches.firCachesFactory
 import org.jetbrains.kotlin.fir.caches.getValue
 import org.jetbrains.kotlin.fir.extensions.FirExtensionSessionComponent
+import org.jetbrains.kotlin.fir.moduleData
 import org.jetbrains.kotlin.name.CallableId
 
 /**
@@ -15,7 +16,8 @@ import org.jetbrains.kotlin.name.CallableId
  */
 class CollectorItemIndex(session: FirSession, private val moduleName: String) : FirExtensionSessionComponent(session) {
     internal val own: OwnItems by session.firCachesFactory.createLazyValue {
-        ItemScanner(session, moduleName).scan(session.collectorIndex.targetAnnotations)
+        val inherited = session.moduleData.allDependsOnDependencies.map { it.session.collectorItemIndex.own }
+        ItemScanner(session, moduleName).scan(session.collectorIndex.targetAnnotations, inherited)
     }
 
     internal val hints: Map<CallableId, List<HintSpec>> by session.firCachesFactory.createLazyValue {

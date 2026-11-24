@@ -9,6 +9,7 @@ import org.jetbrains.kotlin.fir.declarations.DirectDeclarationsAccess
 import org.jetbrains.kotlin.fir.declarations.FirDeclaration
 import org.jetbrains.kotlin.fir.declarations.FirEnumEntry
 import org.jetbrains.kotlin.fir.declarations.FirFile
+import org.jetbrains.kotlin.fir.declarations.FirMemberDeclaration
 import org.jetbrains.kotlin.fir.declarations.FirNamedFunction
 import org.jetbrains.kotlin.fir.declarations.FirProperty
 import org.jetbrains.kotlin.fir.declarations.FirRegularClass
@@ -82,7 +83,11 @@ private fun FirDeclaration.itemKind(): ItemIdentity.Kind? = when (this) {
  */
 @OptIn(DirectDeclarationsAccess::class)
 internal class ItemScanner(private val session: FirSession, private val module: String) {
-    fun scan(targets: Set<ClassId>): OwnItems {
+    /**
+     * [inherited] are the items of the source sets this one depends on (commonMain for jvmMain): they are compiled
+     * together with it, so what they already declare must not be declared again.
+     */
+    fun scan(targets: Set<ClassId>, inherited: List<OwnItems>): OwnItems {
         val provider = session.firProvider
         val found = mutableListOf<ItemDef>()
         val missed = mutableMapOf<ClassId, MutableList<String>>()
@@ -102,15 +107,30 @@ internal class ItemScanner(private val session: FirSession, private val module: 
         // Files that feed generated top-level declarations must be recompiled on every IC round,
         // otherwise their holders disappear (the predicate-based provider does this automatically).
         found.forEach { session.lookupTracker?.recordDirtyDeclaration(it.declaration.symbol) }
+
+        val inheritedItems = inherited.flatMap { it.items }
+        // An expect declaration and its actual are one item (spec 06+): the holder of the expect declaration stands
+        // for both, so an annotated actual gets none of its own.
+        val expected = (inheritedItems + found).filter { it.declaration.isExpect }.mapTo(mutableSetOf()) { it.identity.kind to it.identity.fqName }
+        val own = found.filterNot { it.declaration.isActual && (it.identity.kind to it.identity.fqName) in expected }
         // The same declaration twice (overloads) is reported by the checker; keep the first one here.
-        val unique = found.distinctBy { it.identity.path }.sortedBy { it.identity }
+        val unique = own.distinctBy { it.identity.path }.sortedBy { it.identity }
         // Names differing only in case clash as class files on case-insensitive file systems: number them.
-        val result = unique.groupBy { it.holder.shortClassName.asString().lowercase() }.values.flatMap { group ->
-            group.mapIndexed { i, item -> if (i == 0) item else item.copy(holder = CollectorNames.holder(item.identity, i)) }
+        val taken = inheritedItems.mapTo(mutableSetOf()) { it.holder.caseInsensitiveName() }
+        val result = unique.map { item ->
+            val number = generateSequence(0) { it + 1 }.first { taken.add(CollectorNames.holder(item.identity, it).caseInsensitiveName()) }
+            if (number == 0) item else item.copy(holder = CollectorNames.holder(item.identity, number))
         }
         debugLog { "own items: ${result.map { it.identity.fqName + "@" + it.annotations + " -> " + it.holder.shortClassName }}" }
-        return OwnItems(module, result, missed.mapValues { (_, fqNames) -> fqNames.min() })
+        // one marker per annotation and module, whichever source set misses it first
+        val inheritedMissed = inherited.flatMapTo(mutableSetOf()) { it.missed.keys }
+        return OwnItems(module, result, missed.filterKeys { it !in inheritedMissed }.mapValues { (_, fqNames) -> fqNames.min() })
     }
+
+    private fun ClassId.caseInsensitiveName(): String = shortClassName.asString().lowercase()
+
+    private val FirDeclaration.isExpect: Boolean get() = (this as? FirMemberDeclaration)?.status?.isExpect == true
+    private val FirDeclaration.isActual: Boolean get() = (this as? FirMemberDeclaration)?.status?.isActual == true
 
     /** [container] is the dotted name of the classes around [decl], empty at the top level. */
     private fun collectItems(
