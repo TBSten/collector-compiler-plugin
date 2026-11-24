@@ -123,11 +123,14 @@ val pairs: List<Pair<Screen, Page>> = ScreenCollector.collectWithAnnotation()
 val byPath: Map<Screen, Page> = ScreenCollector.collectAsMap()   // 同じキーが 2 つあればコンパイルエラー
 ```
 
+- `collectAsMap` のキーの重複は、書かれた引数どうしをコンパイル時に比べる（リテラルと const val、`[…]` と `arrayOf(…)`、別モジュールのアイテムとの組も同じ値なら重複）。引数を省略したもの（デフォルト値）と、同じ値を明示したものはコンパイル時には見分けられず、実行時に `IllegalStateException` になる。
+
 ## 制約
 
 - **アイテムを含むモジュールから Collector が見えている必要がある。** Collector が見えないモジュールのアイテムは集められない。自前のアノテーションなら、Collector を同じファイルに置けば必ず見える。
   - ソースセットでも同じ。Collector を `jvmMain` などプラットフォーム側に置くと、`commonMain` のアイテムからは見えないので集められない。Collector は `commonMain` に置く。
   - 見えずに集められなかった宣言があると、取り出す側の呼び出しで警告（`COLLECT_MISSED_ITEMS`）が出る。同じアノテーションの別の Collector だけが見えていた場合（共通モジュールの Collector に加えて、アプリ側で Collector を足したときなど）も同じ。
+- **アノテーションを付けるモジュールすべてにプラグインを適用する。** 適用していないモジュールの宣言は、警告なしで対象外になる（プラグインが動かないので、集められなかったことも記録できない）。
 - **取り出すモジュールから、アイテムを含むモジュールが見えている必要がある。** `implementation` の推移依存の先にあるアイテムは見えないので、`api` で公開する。
 - ほかのバージョンの Collector でビルドされたモジュールが混ざると、エラー（`HINT_FORMAT_MISMATCH`）で再ビルドを促す。
 - **`@CollectorFor` はその名前のまま書く。** import の別名（`import …CollectorFor as Register`）や typealias 経由だと Collector として登録されないので、エラー（`COLLECTOR_FOR_ALIASED`）にしている。
