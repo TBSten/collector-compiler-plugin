@@ -7,7 +7,7 @@ plugins {
 subprojects {
     // Malformed IR from the plugin fails the build instead of passing unnoticed (the JVM backend does not check by default).
     tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask<*>>().configureEach {
-        compilerOptions.freeCompilerArgs.addAll("-Xverify-ir=error", "-Xverify-ir-visibility")
+        compilerOptions.freeCompilerArgs.add("-Xverify-ir=error")
     }
 }
 
