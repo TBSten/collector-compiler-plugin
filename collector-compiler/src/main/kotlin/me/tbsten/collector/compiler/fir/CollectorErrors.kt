@@ -68,6 +68,9 @@ object CollectorErrors : KtDiagnosticsContainer() {
     /** Two collected declarations with the same fully-qualified name (arg: the name). */
     val ITEM_NAME_CLASH by error1<KtElement, String>()
 
+    /** A collected annotation on an actual declaration that its expect declaration, the item, does not have (arg: the annotations). */
+    val ITEM_ANNOTATION_ONLY_ON_ACTUAL by warning1<KtElement, String>()
+
     /** A collected declaration that no visible Collector can convert (arg: per-Collector reasons). */
     val ITEM_NOT_CONVERTIBLE by warning1<KtElement, String>()
 
@@ -130,6 +133,11 @@ object CollectorErrors : KtDiagnosticsContainer() {
             map.put(
                 ITEM_NAME_CLASH,
                 "Collected declarations must have distinct names, but {0} is used more than once (overloads, and declarations of the same name in other files of the package, are not supported).",
+                CommonRenderers.STRING,
+            )
+            map.put(
+                ITEM_ANNOTATION_ONLY_ON_ACTUAL,
+                "{0} is not collected here: the item is the expect declaration, which is not annotated with it. Annotate the expect declaration too.",
                 CommonRenderers.STRING,
             )
             map.put(

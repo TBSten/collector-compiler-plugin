@@ -67,7 +67,7 @@ internal fun FirDeclaration.itemName(): String? = when (this) {
 }
 
 /** What kind of item [this] can be, or null for declarations that are never items. */
-private fun FirDeclaration.itemKind(): ItemIdentity.Kind? = when (this) {
+internal fun FirDeclaration.itemKind(): ItemIdentity.Kind? = when (this) {
     is FirRegularClass -> ItemIdentity.Kind.CLASS
     is FirNamedFunction -> ItemIdentity.Kind.FUNCTION
     is FirProperty -> ItemIdentity.Kind.PROPERTY

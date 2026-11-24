@@ -6,8 +6,10 @@ import me.tbsten.collector.compiler.fir.collectorIndex
 import me.tbsten.collector.compiler.fir.collectorItemIndex
 import me.tbsten.collector.compiler.fir.conversionProblem
 import me.tbsten.collector.compiler.fir.describeHint
+import me.tbsten.collector.compiler.fir.ItemDef
 import me.tbsten.collector.compiler.fir.expandedAnnotationIds
 import me.tbsten.collector.compiler.fir.isJavaSourceClass
+import me.tbsten.collector.compiler.fir.itemKind
 import me.tbsten.collector.compiler.fir.itemName
 import me.tbsten.collector.compiler.fir.withMetaAnnotations
 import org.jetbrains.kotlin.descriptors.ClassKind
@@ -29,6 +31,8 @@ import org.jetbrains.kotlin.fir.declarations.utils.isInner
 import org.jetbrains.kotlin.fir.declarations.utils.isLocal
 import org.jetbrains.kotlin.fir.resolve.providers.firProvider
 import org.jetbrains.kotlin.fir.symbols.SymbolInternals
+import org.jetbrains.kotlin.fir.symbols.impl.FirCallableSymbol
+import org.jetbrains.kotlin.fir.symbols.impl.FirClassLikeSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirFileSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
 
@@ -79,6 +83,15 @@ internal object CollectedItemChecker : FirBasicDeclarationChecker(MppCheckerKind
             reporter.reportOn(source, CollectorErrors.ANNOTATION_MISREAD, misread.joinToString { it.asFqNameString() })
             return
         }
+        // An actual declaration belongs to the item of its expect declaration (spec 06+), which is the one checked.
+        // Its holder was declared with the common source set, so what only the actual is annotated with is lost.
+        expectItemOf(declaration)?.let { expect ->
+            val onlyHere = annotations - expect.annotations
+            if (onlyHere.isNotEmpty()) {
+                reporter.reportOn(source, CollectorErrors.ITEM_ANNOTATION_ONLY_ON_ACTUAL, onlyHere.joinToString { "@${it.shortClassName}" })
+            }
+            return
+        }
         nameClash(declaration)?.let {
             reporter.reportOn(source, CollectorErrors.ITEM_NAME_CLASH, it)
         }
@@ -92,6 +105,19 @@ internal object CollectedItemChecker : FirBasicDeclarationChecker(MppCheckerKind
             val detail = problems.joinToString("; ") { (c, problem) -> "${c.collector.shortClassName}: $problem" }
             reporter.reportOn(source, CollectorErrors.ITEM_NOT_CONVERTIBLE, detail)
         }
+    }
+
+    /** The item of the expect declaration [declaration] is the actual of, or null. */
+    context(context: CheckerContext)
+    private fun expectItemOf(declaration: FirDeclaration): ItemDef? {
+        if (!declaration.isActual) return null
+        val kind = declaration.itemKind() ?: return null
+        val fqName = when (val symbol = declaration.symbol) {
+            is FirClassLikeSymbol<*> -> symbol.classId.asSingleFqName()
+            is FirCallableSymbol<*> -> symbol.callableId?.asSingleFqName()
+            else -> null
+        } ?: return null
+        return context.session.collectorItemIndex.expectItem(kind, fqName.asString())
     }
 
     /** Why [declaration] can not be an item where it is declared, or null when it can. */
