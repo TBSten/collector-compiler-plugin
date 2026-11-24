@@ -1,6 +1,8 @@
 import defs.EnumKindCollector
 import defs.PaletteCollector
 import defs.PaletteFactoryCollector
+import defs.Platform
+import defs.PlatformCollector
 import defs.Labeled
 import defs.LabeledCollector
 import defs.LongNameCollector
@@ -34,6 +36,15 @@ class EdgeInputTest {
         // edge.PlatformTint, then the functions edge.tintOnActual and edge.tintOnBoth, which return it
         val tint = edge.PlatformTint
         assertEquals(listOf(Color.BLUE, Color.RED, tint, tint, tint), PaletteFactoryCollector.collectAsList().map { it() })
+    }
+
+    /** The annotations of an expect item are read from the expect declaration, whether its actual repeats them or not. */
+    @Test
+    fun annotationsOfAnExpectItem() {
+        // edge.platformOnBoth, edge.platformOnExpectOnly
+        assertEquals(listOf("both", "expect only"), PlatformCollector.collectAsList().map { it() })
+        val pairs = PlatformCollector.collectWithAnnotation<Platform, () -> String>().map { it.first.name to it.second() }
+        assertEquals(listOf("on both" to "both", "on expect only" to "expect only"), pairs)
     }
 
     @Test

@@ -5,8 +5,8 @@ kotlin {
         dependencies {
             implementation(project(":items1")); implementation(project(":items2")); implementation(project(":oldhints"))
         }
-        if (warningCases) kotlin.setSrcDirs(listOf("warnings"))
+        if (warningCases) kotlin.setSrcDirs(listOf("warnings/common"))
     }
-    // the cases that need a Java source
-    sourceSets.jvmMain { if (warningCases) kotlin.setSrcDirs(emptyList<String>()) }
+    // the cases that need a Java source or an actual declaration
+    sourceSets.jvmMain { if (warningCases) kotlin.setSrcDirs(listOf("warnings/jvm")) }
 }

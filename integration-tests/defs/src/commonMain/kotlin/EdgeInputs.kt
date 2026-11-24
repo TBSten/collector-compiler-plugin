@@ -78,3 +78,9 @@ object SpelledCollector : Collector<String>
 
 @CollectorFor<Spellings.Nested>()
 object NestedSpelledCollector : Collector<String>
+
+// an annotation with a value on expect declarations
+annotation class Platform(val name: String)
+
+@CollectorFor<Platform>()
+object PlatformCollector : Collector<() -> String>
