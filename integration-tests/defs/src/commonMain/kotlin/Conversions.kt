@@ -21,6 +21,12 @@ object ShapeClassCollector : Collector<KClass<out Shape>>
 @CollectorFor<Conv>()
 object ShapeProviderCollector : Collector<() -> Shape>
 
+/** T = Any takes an instance and a class reference alike, so the order of the conversion rules shows. */
+annotation class Loose
+
+@CollectorFor<Loose>()
+object LooseCollector : Collector<Any>
+
 annotation class Route
 
 class Router { val routes = mutableListOf<String>() }

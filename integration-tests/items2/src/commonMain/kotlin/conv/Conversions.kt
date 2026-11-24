@@ -11,6 +11,13 @@ import defs.Shape
 
 @Conv class Named(name: String) : Shape { override val id = "named:$name" }
 
+// two constructors with one parameter: (String) -> Shape takes the one whose parameter is a String
+@Conv class Sized(size: Int) : Shape {
+    constructor(name: String) : this(name.length)
+
+    override val id = "sized:$size"
+}
+
 @Conv interface Polygon : Shape
 
 @Conv val defaultShape: Shape = object : Shape { override val id = "default" }
