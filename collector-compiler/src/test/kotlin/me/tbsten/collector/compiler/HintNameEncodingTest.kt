@@ -37,4 +37,30 @@ class HintNameEncodingTest {
         val encoded = HintNameEncoding.encode("x/`weird name`-日本:1.2")
         assert(encoded.all { it.isLetterOrDigit() && it.code < 128 || it == '_' }) { encoded }
     }
+
+    @Test
+    fun shortNamesAreKeptAsTheyAre() {
+        assertEquals("com__example__Home", HintNameEncoding.bounded("com__example__Home", 120))
+        assertEquals("a".repeat(120), HintNameEncoding.bounded("a".repeat(120), 120))
+    }
+
+    /** A long name keeps its beginning and ends in a hash of the whole name (test plan G5). */
+    @Test
+    fun longNamesAreShortenedToTheLimit() {
+        val long = "com__example__" + "Screen".repeat(30)
+        val bounded = HintNameEncoding.bounded(long, 120)
+        assertEquals(120, bounded.length)
+        assert(bounded.startsWith("com__example__ScreenScreen")) { bounded }
+        assert(Regex(".*_z[0-9a-f]{16}").matches(bounded)) { bounded }
+        assertEquals(bounded, HintNameEncoding.bounded(long, 120))
+    }
+
+    @Test
+    fun shortenedNamesOfDifferentNamesDiffer() {
+        val prefix = "a".repeat(200)
+        assertNotEquals(HintNameEncoding.bounded(prefix + "x", 120), HintNameEncoding.bounded(prefix + "y", 120))
+        // an escape cut in half leaves no `_` before the marker, and still no collision
+        val escaped = "a".repeat(101) + "__" + "b".repeat(100)
+        assert(!HintNameEncoding.bounded(escaped, 120).contains("__z")) { HintNameEncoding.bounded(escaped, 120) }
+    }
 }

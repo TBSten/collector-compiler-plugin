@@ -87,4 +87,23 @@ class CollectorNamesTest {
         assertEquals("itemHint_com__example__Home_in_app_k1", CollectorNames.itemHintFile(CollectorNames.holder(home, 1)))
         assertEquals("collectorMissed_com__example__Route_in_app", CollectorNames.missedHintFile(CollectorNames.missedMarker(route, "app")))
     }
+
+    /** Every class, file and member name stays short enough for `Item_…$annotations_…$1.class` to be a file name. */
+    @Test
+    fun longNamesStayWithinFileNameLimits() {
+        val deep = FqName((1..20).joinToString(".") { "segment$it" })
+        val longClass = ClassId(deep, FqName("日本語の名前".repeat(10)), isLocal = false)
+        val item = ItemIdentity(Kind.CLASS, "group:" + "module-".repeat(20), deep.asString(), null, "日本語の名前".repeat(10))
+        val holder = CollectorNames.holder(item, 12).shortClassName.asString()
+        val members = listOf(CollectorNames.asFunction(longClass), CollectorNames.annotationsFunction(longClass)).map { it.asString() }
+        val files = listOf(
+            CollectorNames.itemHintFile(CollectorNames.holder(item, 12)),
+            CollectorNames.collectorForHintFile(longClass),
+            CollectorNames.collectorKeyHintFile(longClass),
+            CollectorNames.missedHintFile(CollectorNames.missedMarker(longClass, item.module)),
+        )
+        for (member in members) assert("$holder$$member$1.class".length <= 255) { "$holder$$member$1.class" }
+        for (file in files) assert("${file}Kt.class".length <= 255) { file }
+        assertNotEquals(holder, CollectorNames.holder(item.copy(module = item.module + "x"), 12).shortClassName.asString())
+    }
 }

@@ -54,6 +54,15 @@ internal object CollectorNames {
     /** Names are made from class ids (`com/example/Outer.Inner`), which tell a package from an outer class. */
     private fun encode(id: ClassId): String = HintNameEncoding.encode(id.asString())
 
+    // Classes, files and holder members become file names (a class file, or a class nested in a member), which file
+    // systems limit to 255 bytes: `Item_<class>_k<n>$annotations_<member>$1.class` has to fit.
+    private const val MAX_CLASS_NAME = 120
+    private const val MAX_MEMBER_NAME = 100
+
+    private fun classNamePart(encoded: String): String = HintNameEncoding.bounded(encoded, MAX_CLASS_NAME)
+
+    private fun memberNamePart(encoded: String): String = HintNameEncoding.bounded(encoded, MAX_MEMBER_NAME)
+
     /** The name of the `collectorFor_` hints for the annotation [annotation]. */
     fun collectorForHintName(annotation: ClassId): Name = Name.identifier(COLLECTOR_FOR_PREFIX + encode(annotation))
 
@@ -75,7 +84,10 @@ internal object CollectorNames {
         CallableId(HINTS_PACKAGE, Name.identifier(MISSED_PREFIX + encode(annotation)))
 
     fun missedMarker(annotation: ClassId, module: String): ClassId =
-        ClassId(HINTS_PACKAGE, Name.identifier(MISSED_MARKER_PREFIX + encode(annotation) + MODULE_SEPARATOR + HintNameEncoding.encode(module)))
+        ClassId(
+            HINTS_PACKAGE,
+            Name.identifier(MISSED_MARKER_PREFIX + classNamePart(encode(annotation) + MODULE_SEPARATOR + HintNameEncoding.encode(module))),
+        )
 
     fun itemHint(annotation: ClassId): CallableId =
         CallableId(HINTS_PACKAGE, Name.identifier(ITEM_PREFIX + encode(annotation)))
@@ -84,10 +96,10 @@ internal object CollectorNames {
     // so they are part of the hint format too.
 
     /** The file of the `collectorFor_` and `collectorTag_` hints of [collector]. */
-    fun collectorForHintFile(collector: ClassId): String = COLLECTOR_FOR_PREFIX + encode(collector)
+    fun collectorForHintFile(collector: ClassId): String = COLLECTOR_FOR_PREFIX + classNamePart(encode(collector))
 
     /** The file of the `collectorKey_` hints of [collector]. */
-    fun collectorKeyHintFile(collector: ClassId): String = collectorKeyHint(collector).callableName.asString()
+    fun collectorKeyHintFile(collector: ClassId): String = COLLECTOR_KEY_PREFIX + classNamePart(encode(collector))
 
     /** The file of the `collectorMissed_` hint with the marker [marker]; it follows the marker's name. */
     fun missedHintFile(marker: ClassId): String = MISSED_PREFIX + marker.shortClassName.asString().removePrefix(MISSED_MARKER_PREFIX)
@@ -99,14 +111,15 @@ internal object CollectorNames {
      * The holder object of an item, `Item_<enc(path)>_in_<enc(module)>`; its message records [identity].
      *
      * The path keeps packages, files and classes apart, and the module keeps apart declarations that two modules may
-     * both have (a top-level function with the same name in the same package). [disambiguator] > 0 adds `_k<n>`, used
-     * when names in one module differ only in case (`Foo` / `foo`), which clash as class files on case-insensitive
-     * file systems.
+     * both have (a top-level function with the same name in the same package). A long name is shortened (see
+     * [HintNameEncoding.bounded]). [disambiguator] > 0 adds `_k<n>`, used when names in one module differ only in
+     * case (`Foo` / `foo`), which clash as class files on case-insensitive file systems.
      */
     fun holder(identity: ItemIdentity, disambiguator: Int = 0): ClassId = ClassId(
         HINTS_PACKAGE,
         Name.identifier(
-            HOLDER_PREFIX + HintNameEncoding.encode(identity.path) + MODULE_SEPARATOR + HintNameEncoding.encode(identity.module) +
+            HOLDER_PREFIX +
+                classNamePart(HintNameEncoding.encode(identity.path) + MODULE_SEPARATOR + HintNameEncoding.encode(identity.module)) +
                 disambiguatorSuffix(disambiguator),
         ),
     )
@@ -115,10 +128,10 @@ internal object CollectorNames {
 
     private fun disambiguatorSuffix(disambiguator: Int): String = if (disambiguator > 0) "_k$disambiguator" else ""
 
-    fun asFunction(collector: ClassId): Name = Name.identifier(AS_PREFIX + encode(collector))
+    fun asFunction(collector: ClassId): Name = Name.identifier(AS_PREFIX + memberNamePart(encode(collector)))
 
     /** Holder member `annotations_<enc(X)>(): List<X>`: the X annotations of the item, in source order. */
-    fun annotationsFunction(annotation: ClassId): Name = Name.identifier(ANNOTATIONS_PREFIX + encode(annotation))
+    fun annotationsFunction(annotation: ClassId): Name = Name.identifier(ANNOTATIONS_PREFIX + memberNamePart(encode(annotation)))
 
     val COLLECTOR_INTERNALS = ClassId(FqName("me.tbsten.collector.internal"), Name.identifier("CollectorInternals"))
 
