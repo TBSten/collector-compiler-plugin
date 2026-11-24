@@ -43,13 +43,23 @@ class CollectorIndex(session: FirSession) : FirExtensionSessionComponent(session
         register(COLLECTOR_FOR_PREDICATE)
     }
 
+    /**
+     * The objects of this module the compiler found `@CollectorFor` on early enough for hints. It only finds the
+     * annotation under its own name: `CollectorForChecker` reports an object that is missing here.
+     */
+    private val annotatedObjects: List<FirRegularClassSymbol> by session.firCachesFactory.createLazyValue {
+        session.predicateBasedProvider.getSymbolsByPredicate(COLLECTOR_FOR_PREDICATE)
+            .filterIsInstance<FirRegularClassSymbol>()
+            .filter { it.classKind == ClassKind.OBJECT } // others are reported by CollectorForChecker
+    }
+
+    internal fun isRegistered(collector: ClassId): Boolean = annotatedObjects.any { it.classId == collector }
+
     // The annotations are read unresolved (`fir`): this runs while declarations are generated, before the phase that
     // resolves them.
     @OptIn(SymbolInternals::class)
     internal val ownCollectors: List<CollectorDef> by session.firCachesFactory.createLazyValue {
-        session.predicateBasedProvider.getSymbolsByPredicate(COLLECTOR_FOR_PREDICATE)
-            .filterIsInstance<FirRegularClassSymbol>()
-            .filter { it.classKind == ClassKind.OBJECT } // others are reported by CollectorForChecker
+        annotatedObjects
             .flatMap { cls ->
                 cls.fir.annotations
                     .filter { it.annotationTypeRef.coneTypeOrNull?.classId == CollectorNames.COLLECTOR_FOR }

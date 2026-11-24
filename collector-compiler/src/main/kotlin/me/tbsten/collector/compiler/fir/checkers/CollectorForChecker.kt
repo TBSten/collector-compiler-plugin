@@ -4,6 +4,7 @@ import me.tbsten.collector.compiler.CollectorNames
 import me.tbsten.collector.compiler.fir.CollectorErrors
 import me.tbsten.collector.compiler.fir.collectorForTagArgument
 import me.tbsten.collector.compiler.fir.collectorForTarget
+import me.tbsten.collector.compiler.fir.collectorIndex
 import me.tbsten.collector.compiler.fir.stringLiteral
 import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
@@ -13,6 +14,7 @@ import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
 import org.jetbrains.kotlin.fir.analysis.checkers.declaration.FirRegularClassChecker
 import org.jetbrains.kotlin.fir.declarations.FirRegularClass
 import org.jetbrains.kotlin.fir.declarations.toAnnotationClassId
+import org.jetbrains.kotlin.fir.declarations.utils.classId
 import org.jetbrains.kotlin.fir.types.classId
 
 /** Checks classes annotated with `@CollectorFor`: only objects that implement `Collector<T>` are Collectors. */
@@ -28,6 +30,10 @@ internal object CollectorForChecker : FirRegularClassChecker(MppCheckerKind.Comm
         }
         if (declaration.symbol.resolvedSuperTypes.none { it.classId == CollectorNames.COLLECTOR }) {
             reporter.reportOn(source, CollectorErrors.COLLECTOR_FOR_NOT_COLLECTOR)
+        }
+        if (!context.session.collectorIndex.isRegistered(declaration.classId)) {
+            reporter.reportOn(source, CollectorErrors.COLLECTOR_FOR_ALIASED)
+            return
         }
         for (annotation in annotations) {
             val tag = annotation.collectorForTagArgument() ?: continue

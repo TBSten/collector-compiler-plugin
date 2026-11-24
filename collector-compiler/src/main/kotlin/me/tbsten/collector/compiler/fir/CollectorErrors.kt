@@ -47,6 +47,9 @@ object CollectorErrors : KtDiagnosticsContainer() {
     /** `@CollectorFor` on an object that does not implement `Collector<T>`. */
     val COLLECTOR_FOR_NOT_COLLECTOR by error0<KtElement>()
 
+    /** `@CollectorFor` written through an import alias or a type alias, which hides the Collector from the plugin. */
+    val COLLECTOR_FOR_ALIASED by error0<KtElement>()
+
     /** The same annotation X twice on one Collector (arg: X). */
     val COLLECTOR_FOR_DUPLICATE by warning1<KtElement, String>()
 
@@ -97,6 +100,10 @@ object CollectorErrors : KtDiagnosticsContainer() {
             map.put(COLLECTOR_FOR_TAG_NOT_LITERAL, "The tag of @CollectorFor must be a string literal.")
             map.put(COLLECTOR_FOR_NOT_OBJECT, "@CollectorFor can only be used on an object.")
             map.put(COLLECTOR_FOR_NOT_COLLECTOR, "An object annotated with @CollectorFor must implement Collector<T>.")
+            map.put(
+                COLLECTOR_FOR_ALIASED,
+                "@CollectorFor must be written with its own name: through an import alias or a type alias the Collector is not registered.",
+            )
             map.put(COLLECTOR_FOR_DUPLICATE, "@CollectorFor<{0}> is repeated on the same object.", CommonRenderers.STRING)
             map.put(ITEM_NOT_ALLOWED_HERE, "This declaration can not be collected: {0}.", CommonRenderers.STRING)
             map.put(
