@@ -23,4 +23,4 @@ include(":extlib", ":defs", ":items1", ":items2", ":app")
 include(":compose-defs", ":compose-items", ":compose-app")
 
 // Compile-error cases, checked by scripts/error-check.sh (they never compile, so they are opt-in)
-if (providers.gradleProperty("collector.errorCases").isPresent) include(":errors")
+if (providers.gradleProperty("collector.errorCases").isPresent) include(":errors", ":oldhints")
