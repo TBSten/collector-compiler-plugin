@@ -14,6 +14,22 @@ dependencies {
 
     testImplementation(libs.kotlin.compiler.embeddable)
     testImplementation(kotlin("test"))
+    // kctfork: compiles small sources in-process with the plugin (diagnostic and run tests). It brings its own
+    // kotlin-compiler-embeddable, so the compiler is pinned to the version the plugin supports.
+    testImplementation(libs.kctfork)
+    testImplementation(project(":collector-runtime"))
+}
+
+configurations.matching { it.name.startsWith("test") }.configureEach {
+    resolutionStrategy.eachDependency {
+        if (requested.group == "org.jetbrains.kotlin" && requested.name.startsWith("kotlin-")) useVersion(libs.versions.kotlin.get())
+    }
+}
+
+tasks.test {
+    // Each kctfork compilation spins up a compiler; the suite is CPU-bound and benefits from a larger heap.
+    maxHeapSize = "2g"
+    maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceAtLeast(1)
 }
 
 tasks.test {
