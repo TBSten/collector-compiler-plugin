@@ -5,6 +5,7 @@ import org.jetbrains.kotlin.diagnostics.KtDiagnosticFactoryToRendererMap
 import org.jetbrains.kotlin.diagnostics.KtDiagnosticsContainer
 import org.jetbrains.kotlin.diagnostics.error0
 import org.jetbrains.kotlin.diagnostics.error1
+import org.jetbrains.kotlin.diagnostics.error2
 import org.jetbrains.kotlin.diagnostics.rendering.BaseDiagnosticRendererFactory
 import org.jetbrains.kotlin.diagnostics.rendering.CommonRenderers
 import org.jetbrains.kotlin.diagnostics.warning1
@@ -64,6 +65,18 @@ object CollectorErrors : KtDiagnosticsContainer() {
      * can not look into (arg: those annotation classes).
      */
     val META_ANNOTATION_IN_JAVA_SOURCE by error1<KtElement, String>()
+
+    /**
+     * A collected annotation with SOURCE retention on a public annotation class: other modules that use the annotation
+     * class do not see it (arg: the annotation).
+     */
+    val META_ANNOTATION_SOURCE_RETENTION by warning1<KtElement, String>()
+
+    /**
+     * A collected annotation on an annotation class, with an argument that refers to a private class: the argument
+     * can not be built where the annotation class is used (args: the annotation, the private classes).
+     */
+    val META_ANNOTATION_PRIVATE_ARGUMENT by error2<KtElement, String, String>()
 
     /** The same annotation X twice on one Collector (arg: X). */
     val COLLECTOR_FOR_DUPLICATE by warning1<KtElement, String>()
@@ -147,6 +160,20 @@ object CollectorErrors : KtDiagnosticsContainer() {
                 COLLECTOR_FOR_GENERIC_ANNOTATION,
                 "{0} has type parameters. Collector does not tell the type arguments of an annotation apart, " +
                     "so annotation classes with type parameters can not be collected.",
+                CommonRenderers.STRING,
+            )
+            map.put(
+                META_ANNOTATION_SOURCE_RETENTION,
+                "@{0} has SOURCE retention, so it is not kept on this annotation class once compiled: declarations of other " +
+                    "modules annotated with this annotation class are not collected. Give @{0} BINARY or RUNTIME retention, or " +
+                    "annotate those declarations with @{0} directly.",
+                CommonRenderers.STRING,
+            )
+            map.put(
+                META_ANNOTATION_PRIVATE_ARGUMENT,
+                "The arguments of @{0} are built again where this annotation class is used, where {1} can not be reached. " +
+                    "Make it internal or public, or make this annotation class private.",
+                CommonRenderers.STRING,
                 CommonRenderers.STRING,
             )
             map.put(COLLECTOR_FOR_DUPLICATE, "@CollectorFor<{0}> is repeated on the same object.", CommonRenderers.STRING)
