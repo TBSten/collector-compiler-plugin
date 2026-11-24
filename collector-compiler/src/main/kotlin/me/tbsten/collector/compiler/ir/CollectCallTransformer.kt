@@ -55,7 +55,7 @@ internal class CollectCallTransformer(
                 ?: error("Collector: the receiver of ${function.name}() must be a @CollectorFor object (checked on the FIR side)")
             discovery.entriesFor(collector)
         }
-        debugLog { "call site ${currentFile.name}: ${function.name} -> ${entries.map { it.fqName }}" }
+        debugLog { "call site ${currentFile.name}: ${function.name} -> ${entries.map { it.identity.fqName }}" }
 
         val builder = DeclarationIrBuilder(context, currentScope!!.scope.scopeOwnerSymbol, expression.startOffset, expression.endOffset)
         val typeArguments = expression.typeArguments.map { it ?: error("Collector: no type argument on ${function.name}()") }

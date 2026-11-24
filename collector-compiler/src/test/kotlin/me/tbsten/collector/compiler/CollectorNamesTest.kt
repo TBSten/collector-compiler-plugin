@@ -28,7 +28,6 @@ class CollectorNamesTest {
     fun holderNames() {
         val holder = CollectorNames.holder("com.example.Home")
         assertEquals("Item_com__example__Home", holder.shortClassName.asString())
-        assertEquals("com.example.Home", CollectorNames.decodeHolder(holder))
         assertEquals("as_com__example__RouteCollector", CollectorNames.asFunction(collector).asString())
     }
 

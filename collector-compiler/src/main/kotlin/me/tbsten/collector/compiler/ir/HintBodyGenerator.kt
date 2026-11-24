@@ -60,7 +60,7 @@ internal class HintBodyGenerator(
                 +IrInstanceInitializerCallImpl(startOffset, endOffset, holder.symbol, context.irBuiltIns.unitType)
             }
         }
-        val fqName = CollectorNames.decodeHolderName(holder.name.asString())
+        val fqName = holder.itemIdentity()?.fqName ?: error("Collector: the holder ${holder.name} does not record its item")
         val target = items[fqName]
         debugLog { "fill holder ${holder.name} -> $fqName -> ${target?.let { it::class.simpleName }}" }
         holder.functions.filter { it.isCollectorGenerated() && it.body == null }.forEach { fn ->

@@ -1,14 +1,18 @@
 package me.tbsten.collector.compiler.fir
 
 import me.tbsten.collector.compiler.CollectorNames
+import me.tbsten.collector.compiler.HintMessage
+import me.tbsten.collector.compiler.ItemIdentity
 import org.jetbrains.kotlin.fir.expressions.FirAnnotation
 import org.jetbrains.kotlin.fir.expressions.FirLiteralExpression
 import org.jetbrains.kotlin.fir.expressions.builder.buildAnnotation
 import org.jetbrains.kotlin.fir.expressions.builder.buildAnnotationArgumentMapping
 import org.jetbrains.kotlin.fir.expressions.builder.buildEnumEntryDeserializedAccessExpression
 import org.jetbrains.kotlin.fir.expressions.builder.buildLiteralExpression
+import org.jetbrains.kotlin.fir.symbols.FirBasedSymbol
 import org.jetbrains.kotlin.fir.symbols.SymbolInternals
 import org.jetbrains.kotlin.fir.symbols.impl.FirCallableSymbol
+import org.jetbrains.kotlin.fir.symbols.impl.FirClassLikeSymbol
 import org.jetbrains.kotlin.fir.toFirResolvedTypeRef
 import org.jetbrains.kotlin.fir.types.classId
 import org.jetbrains.kotlin.fir.types.coneTypeOrNull
@@ -21,11 +25,14 @@ private val MESSAGE = Name.identifier("message")
 private val LEVEL = Name.identifier("level")
 private val HIDDEN = Name.identifier("HIDDEN")
 
-/** `@Deprecated(HINT_MESSAGE, level = HIDDEN)`: keeps a hint out of completion and records the hint format. */
-internal fun hintFormatMarker(): FirAnnotation = buildAnnotation {
+/**
+ * `@Deprecated(message, level = HIDDEN)`: keeps a generated declaration out of user code and records the hint format,
+ * and for holders and missed markers what they stand for (see [HintMessage]).
+ */
+internal fun hiddenMarker(message: String = CollectorNames.HINT_MESSAGE): FirAnnotation = buildAnnotation {
     annotationTypeRef = StandardClassIds.Annotations.Deprecated.constructClassLikeType().toFirResolvedTypeRef()
     argumentMapping = buildAnnotationArgumentMapping {
-        mapping[MESSAGE] = buildLiteralExpression(null, ConstantValueKind.String, CollectorNames.HINT_MESSAGE, setType = true)
+        mapping[MESSAGE] = buildLiteralExpression(null, ConstantValueKind.String, message, setType = true)
         mapping[LEVEL] = buildEnumEntryDeserializedAccessExpression {
             enumClassId = StandardClassIds.DeprecationLevel
             enumEntryName = HIDDEN
@@ -33,16 +40,26 @@ internal fun hintFormatMarker(): FirAnnotation = buildAnnotation {
     }
 }
 
-/** The hint format a hint was written with (see [CollectorNames.HINT_FORMAT]), or null when it records none. */
+/** The message of the [hiddenMarker] on a generated declaration, or null when it has none. */
 @OptIn(SymbolInternals::class)
-internal fun FirCallableSymbol<*>.hintFormat(): Int? {
+internal fun FirBasedSymbol<*>.hintMessage(): String? {
     // Raw annotations without type-alias expansion: this runs while hints are generated, and expanding types would go
     // back through the symbol providers into the generator. Hint annotations are always written with their real class.
     val marker = fir.annotations.firstOrNull { it.annotationTypeRef.coneTypeOrNull?.classId == StandardClassIds.Annotations.Deprecated }
         ?: return null
-    val message = (marker.argumentMapping.mapping[MESSAGE] as? FirLiteralExpression)?.value as? String ?: return null
-    return CollectorNames.hintFormatOf(message)
+    return (marker.argumentMapping.mapping[MESSAGE] as? FirLiteralExpression)?.value as? String
 }
+
+/** The hint format a hint was written with (see [CollectorNames.HINT_FORMAT]), or null when it records none. */
+internal fun FirCallableSymbol<*>.hintFormat(): Int? = hintMessage()?.let { CollectorNames.hintFormatOf(it) }
+
+/** The item a holder stands for, or null when [this] is not a holder this plugin can read. */
+internal fun FirClassLikeSymbol<*>.itemIdentity(): ItemIdentity? =
+    hintMessage()?.let { ItemIdentity.fromFields(HintMessage.fields(it)) }
+
+/** The declaration a missed marker names, or null when [this] is not a missed marker this plugin can read. */
+internal fun FirClassLikeSymbol<*>.missedDeclaration(): String? =
+    hintMessage()?.let { HintMessage.fields(it)[HintMessage.MISSED] }
 
 internal fun FirCallableSymbol<*>.hasCurrentHintFormat(): Boolean = hintFormat() == CollectorNames.HINT_FORMAT
 

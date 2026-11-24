@@ -1,6 +1,7 @@
 package me.tbsten.collector.compiler.fir
 
 import me.tbsten.collector.compiler.CollectorNames
+import me.tbsten.collector.compiler.ItemIdentity
 import me.tbsten.collector.compiler.debugLog
 import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.fir.FirSession
@@ -27,10 +28,10 @@ import org.jetbrains.kotlin.name.FqName
 
 /** A declaration of this module annotated with one or more collected annotations. */
 internal data class ItemDef(
-    val fqName: String,
+    val identity: ItemIdentity,
     val annotations: Set<ClassId>,
     val declaration: FirDeclaration,
-    val holder: ClassId = CollectorNames.holder(fqName),
+    val holder: ClassId = CollectorNames.holder(identity.fqName),
 )
 
 /** The result of [ItemScanner.scan]. */
@@ -45,8 +46,8 @@ internal class OwnItems(
     /** Holder object -> the item it stands for. */
     val byHolder: Map<ClassId, ItemDef> = items.associateBy { it.holder }
 
-    /** The marker interfaces of the `collectorMissed_` hints. */
-    val missedMarkers: Set<ClassId> = missed.values.mapTo(mutableSetOf()) { CollectorNames.missedMarker(it) }
+    /** The marker interfaces of the `collectorMissed_` hints -> the declaration each one names. */
+    val missedMarkers: Map<ClassId, String> = missed.values.associateBy { CollectorNames.missedMarker(it) }
 }
 
 /** The name under which [this] can be an item, or null for declarations that are never items. */
@@ -55,6 +56,15 @@ internal fun FirDeclaration.itemName(): String? = when (this) {
     is FirNamedFunction -> name.asString()
     is FirProperty -> name.asString()
     is FirEnumEntry -> name.asString()
+    else -> null
+}
+
+/** What kind of item [this] can be, or null for declarations that are never items. */
+private fun FirDeclaration.itemKind(): ItemIdentity.Kind? = when (this) {
+    is FirRegularClass -> ItemIdentity.Kind.CLASS
+    is FirNamedFunction -> ItemIdentity.Kind.FUNCTION
+    is FirProperty -> ItemIdentity.Kind.PROPERTY
+    is FirEnumEntry -> ItemIdentity.Kind.ENUM_ENTRY
     else -> null
 }
 
@@ -77,7 +87,7 @@ internal class ItemScanner(private val session: FirSession) {
             for (file in provider.getFirFilesByPackage(FqName(pkg))) {
                 val candidates = mutableSetOf<String>()
                 for (decl in file.declarations) {
-                    collectItems(file, decl, file.packageDirective.packageFqName.asString(), containerIsObject = true, targets, found, candidates, missed)
+                    collectItems(file, decl, container = "", containerIsObject = true, targets, found, candidates, missed)
                 }
                 // A Collector for any of these annotations may appear upstream later: make IC recompile this file then.
                 val tracker = session.lookupTracker ?: continue
@@ -90,21 +100,24 @@ internal class ItemScanner(private val session: FirSession) {
         // otherwise their holders disappear (the predicate-based provider does this automatically).
         found.forEach { session.lookupTracker?.recordDirtyDeclaration(it.declaration.symbol) }
         // Same FQN twice (overloads) is reported by the checker; keep the first one here.
-        val unique = found.distinctBy { it.fqName }.sortedBy { it.fqName }
+        val unique = found.distinctBy { it.identity.fqName }.sortedBy { it.identity }
         // Names differing only in case clash as class files on case-insensitive file systems: number them.
         val result = unique.groupBy { it.holder.shortClassName.asString().lowercase() }.values.flatMap { group ->
-            group.mapIndexed { i, item -> if (i == 0) item else item.copy(holder = CollectorNames.holder(item.fqName, i)) }
+            group.mapIndexed { i, item -> if (i == 0) item else item.copy(holder = CollectorNames.holder(item.identity.fqName, i)) }
         }
-        debugLog { "own items: ${result.map { it.fqName + "@" + it.annotations + " -> " + it.holder.shortClassName }}" }
+        debugLog { "own items: ${result.map { it.identity.fqName + "@" + it.annotations + " -> " + it.holder.shortClassName }}" }
         return OwnItems(result, missed.mapValues { (_, fqNames) -> fqNames.min() })
     }
 
+    /** [container] is the dotted name of the classes around [decl], empty at the top level. */
     private fun collectItems(
-        file: FirFile, decl: FirDeclaration, prefix: String, containerIsObject: Boolean, targets: Set<ClassId>,
+        file: FirFile, decl: FirDeclaration, container: String, containerIsObject: Boolean, targets: Set<ClassId>,
         out: MutableList<ItemDef>, candidates: MutableSet<String>, missed: MutableMap<ClassId, MutableList<String>>,
     ) {
+        val kind = decl.itemKind() ?: return
         val name = decl.itemName() ?: return
-        val fq = if (prefix.isEmpty()) name else "$prefix.$name"
+        val relativeName = if (container.isEmpty()) name else "$container.$name"
+        val identity = ItemIdentity(kind, file.packageDirective.packageFqName.asString(), relativeName)
         // An annotation class annotated with X is a meta-annotation (like a Compose multipreview), not an item.
         if (decl is FirRegularClass && decl.classKind == ClassKind.ANNOTATION_CLASS) return
         // Members of a class need an instance and inner classes an outer instance: the checker reports those.
@@ -134,11 +147,11 @@ internal class ItemScanner(private val session: FirSession) {
             }
         }
         // spec P11: remember annotations without a visible Collector, so that call sites downstream can warn
-        uncollected.filter { it !in targets && !neverCollected(it) }.forEach { missed.getOrPut(it) { mutableListOf() } += fq }
-        if (annotations.isNotEmpty() && placeable) out += ItemDef(fq, annotations, decl)
+        uncollected.filter { it !in targets && !neverCollected(it) }.forEach { missed.getOrPut(it) { mutableListOf() } += identity.fqName }
+        if (annotations.isNotEmpty() && placeable) out += ItemDef(identity, annotations, decl)
         if (decl is FirRegularClass && !decl.isInner) {
             for (member in decl.declarations) {
-                collectItems(file, member, fq, decl.classKind == ClassKind.OBJECT, targets, out, candidates, missed)
+                collectItems(file, member, relativeName, decl.classKind == ClassKind.OBJECT, targets, out, candidates, missed)
             }
         }
     }

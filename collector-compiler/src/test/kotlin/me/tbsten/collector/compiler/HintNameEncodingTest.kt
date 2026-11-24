@@ -11,9 +11,9 @@ class HintNameEncodingTest {
     }
 
     @Test
-    fun roundTrips() {
-        listOf("a.b_c", "a_b.c", "com.example.Api_Routes", "pkg.Outer.Inner", "x.`weird name`", "日本.語", "a__b", "_")
-            .forEach { assertEquals(it, HintNameEncoding.decode(HintNameEncoding.encode(it))) }
+    fun differentNamesNeverCollide() {
+        val names = listOf("a.b_c", "a_b.c", "a.b.c", "a__b", "a_u", "a._", "a_", "_", "", "x.`weird name`", "日本.語", "a_x0041", "aA")
+        assertEquals(names.size, names.map { HintNameEncoding.encode(it) }.toSet().size)
     }
 
     @Test
@@ -27,10 +27,10 @@ class HintNameEncodingTest {
         assert(encoded.all { it.isLetterOrDigit() && it.code < 128 || it == '_' }) { encoded }
     }
 
+    /** `_k<n>` marks a disambiguated holder; a name that ends in `_k1` itself must not look like one. */
     @Test
-    fun disambiguatorIsDroppedOnDecode() {
-        assertEquals("a.k5", CollectorNames.decodeHolderName("Item_" + HintNameEncoding.encode("a.k5")))
-        assertEquals("a.Foo", CollectorNames.decodeHolderName(CollectorNames.holder("a.Foo", 2).shortClassName.asString()))
-        assertEquals("a.foo_k1", CollectorNames.decodeHolderName(CollectorNames.holder("a.foo_k1").shortClassName.asString()))
+    fun disambiguatorDoesNotCollideWithNames() {
+        assertEquals("Item_a__Foo_k2", CollectorNames.holder("a.Foo", 2).shortClassName.asString())
+        assertNotEquals(CollectorNames.holder("a.foo", 1), CollectorNames.holder("a.foo_k1"))
     }
 }

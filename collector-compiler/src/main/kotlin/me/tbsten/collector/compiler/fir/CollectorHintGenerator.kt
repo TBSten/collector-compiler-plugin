@@ -2,6 +2,7 @@ package me.tbsten.collector.compiler.fir
 
 import me.tbsten.collector.compiler.CollectorNames
 import me.tbsten.collector.compiler.CollectorPluginKey
+import me.tbsten.collector.compiler.HintMessage
 import me.tbsten.collector.compiler.debugLog
 import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.fir.FirSession
@@ -39,14 +40,18 @@ class CollectorHintGenerator(session: FirSession) : FirDeclarationGenerationExte
 
     override fun hasPackage(packageFqName: FqName): Boolean = packageFqName == CollectorNames.HINTS_PACKAGE
 
-    override fun getTopLevelClassIds(): Set<ClassId> = items.own.byHolder.keys + items.own.missedMarkers
+    override fun getTopLevelClassIds(): Set<ClassId> = items.own.byHolder.keys + items.own.missedMarkers.keys
 
     override fun getTopLevelCallableIds(): Set<CallableId> = items.hints.keys
 
+    /** Holders and missed markers are hidden from user code; their message says what they stand for. */
     override fun generateTopLevelClassLikeDeclaration(classId: ClassId): FirClassLikeSymbol<*>? {
-        if (classId in items.own.missedMarkers) return createTopLevelClass(classId, CollectorPluginKey, ClassKind.INTERFACE).symbol
-        if (classId !in items.own.byHolder) return null
-        return createTopLevelClass(classId, CollectorPluginKey, ClassKind.OBJECT).symbol
+        val (kind, fields) = items.own.missedMarkers[classId]?.let { ClassKind.INTERFACE to listOf(HintMessage.MISSED to it) }
+            ?: items.own.byHolder[classId]?.let { ClassKind.OBJECT to it.identity.toFields() }
+            ?: return null
+        val cls = createTopLevelClass(classId, CollectorPluginKey, kind)
+        cls.replaceAnnotations(listOf(hiddenMarker(HintMessage.of(fields))))
+        return cls.symbol
     }
 
     /** The item [cls] is the holder of, or null when [cls] is not a holder of this module. */
@@ -61,7 +66,7 @@ class CollectorHintGenerator(session: FirSession) : FirDeclarationGenerationExte
         item.annotations.flatMap { collectors.collectorsFor(it) }.distinctBy { it.collector }.filter { c ->
             val t = c.elementType ?: return@filter false
             val problem = conversionProblem(session, item.declaration, t)
-            if (problem != null) debugLog { "${item.fqName} is not converted for ${c.collector}: $problem" }
+            if (problem != null) debugLog { "${item.identity.fqName} is not converted for ${c.collector}: $problem" }
             problem == null
         }
 
@@ -119,7 +124,7 @@ class CollectorHintGenerator(session: FirSession) : FirDeclarationGenerationExte
             val function = createTopLevelFunction(CollectorPluginKey, callableId, unit, containingFileName = hint.fileName) {
                 hint.parameters.forEach { (name, type) -> valueParameter(name, type.constructClassLikeType()) }
             }
-            function.replaceAnnotations(function.annotations + hintFormatMarker())
+            function.replaceAnnotations(function.annotations + hiddenMarker())
             function.symbol
         }
     }

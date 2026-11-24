@@ -1,6 +1,8 @@
 package me.tbsten.collector.compiler.ir
 
 import me.tbsten.collector.compiler.CollectorPluginKey
+import me.tbsten.collector.compiler.HintMessage
+import me.tbsten.collector.compiler.ItemIdentity
 import org.jetbrains.kotlin.backend.common.lower.DeclarationIrBuilder
 import org.jetbrains.kotlin.builtins.StandardNames
 import org.jetbrains.kotlin.descriptors.DescriptorVisibilities
@@ -10,12 +12,14 @@ import org.jetbrains.kotlin.ir.builders.declarations.buildFun
 import org.jetbrains.kotlin.ir.builders.irBlockBody
 import org.jetbrains.kotlin.ir.builders.irReturn
 import org.jetbrains.kotlin.ir.builders.irUnit
+import org.jetbrains.kotlin.ir.declarations.IrClass
 import org.jetbrains.kotlin.ir.declarations.IrDeclaration
 import org.jetbrains.kotlin.ir.declarations.IrDeclarationOrigin
 import org.jetbrains.kotlin.ir.declarations.IrPackageFragment
 import org.jetbrains.kotlin.ir.declarations.IrParameterKind
 import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
 import org.jetbrains.kotlin.ir.declarations.IrValueParameter
+import org.jetbrains.kotlin.ir.expressions.IrConst
 import org.jetbrains.kotlin.ir.expressions.IrExpression
 import org.jetbrains.kotlin.ir.expressions.IrStatementOrigin
 import org.jetbrains.kotlin.ir.expressions.impl.IrFunctionExpressionImpl
@@ -35,6 +39,13 @@ import org.jetbrains.kotlin.name.SpecialNames
 /** Whether FIR generated this declaration for the plugin (see [CollectorPluginKey]). */
 internal fun IrDeclaration.isCollectorGenerated(): Boolean =
     (origin as? IrDeclarationOrigin.GeneratedByPlugin)?.pluginKey == CollectorPluginKey
+
+/** The item a holder stands for, read from the message FIR gave it, or null when [this] is not a holder. */
+internal fun IrClass.itemIdentity(): ItemIdentity? {
+    val marker = annotations.firstOrNull { it.isAnnotationWithEqualFqName(StandardNames.FqNames.deprecated) } ?: return null
+    val message = (marker.arguments.firstOrNull() as? IrConst)?.value as? String ?: return null
+    return ItemIdentity.fromFields(HintMessage.fields(message))
+}
 
 /** The callable id of a top-level function, or null for members and local functions. */
 internal fun IrSimpleFunction.callableIdOrNull(): CallableId? {

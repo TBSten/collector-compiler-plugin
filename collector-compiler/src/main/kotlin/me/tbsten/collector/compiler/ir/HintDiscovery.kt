@@ -1,6 +1,7 @@
 package me.tbsten.collector.compiler.ir
 
 import me.tbsten.collector.compiler.CollectorNames
+import me.tbsten.collector.compiler.ItemIdentity
 import org.jetbrains.kotlin.backend.common.extensions.DeclarationFinder
 import org.jetbrains.kotlin.ir.declarations.IrClass
 import org.jetbrains.kotlin.ir.symbols.IrClassSymbol
@@ -13,7 +14,7 @@ import org.jetbrains.kotlin.name.ClassId
 /** One collected item as seen from a call site. */
 internal class CollectedEntry(
     val holder: IrClassSymbol,
-    val fqName: String,
+    val identity: ItemIdentity,
     /** `as_<enc(C)>()` on the holder. */
     val asFunction: IrSimpleFunctionSymbol,
     /** Annotations X the item is collected through (for collectWithAnnotation / collectAsMap). */
@@ -44,10 +45,11 @@ internal class HintDiscovery(private val finder: DeclarationFinder) {
             .mapNotNull { (x, hint) -> hint.owner.parameters.firstOrNull()?.type?.classOrNull?.let { x to it } }
             .groupBy({ it.second }, { it.first })
             .mapNotNull { (holder, annotations) ->
+                val identity = holder.owner.itemIdentity() ?: return@mapNotNull null
                 val fn = holder.owner.functions.firstOrNull { it.name == asName } ?: return@mapNotNull null
-                CollectedEntry(holder, CollectorNames.decodeHolderName(holder.owner.name.asString()), fn.symbol, annotations.distinct())
+                CollectedEntry(holder, identity, fn.symbol, annotations.distinct())
             }
-            .sortedBy { it.fqName }
+            .sortedBy { it.identity }
     }
 
     /** The items of every Collector tagged [tag], sorted by FQN; an item reached through several of them appears once. */
@@ -58,5 +60,5 @@ internal class HintDiscovery(private val finder: DeclarationFinder) {
             .sortedBy { it.classId!!.asFqNameString() }
             .flatMap { entriesFor(it) }
             .distinctBy { it.holder }
-            .sortedBy { it.fqName }
+            .sortedBy { it.identity }
 }

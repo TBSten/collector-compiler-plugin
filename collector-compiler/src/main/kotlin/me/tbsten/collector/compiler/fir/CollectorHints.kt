@@ -1,6 +1,7 @@
 package me.tbsten.collector.compiler.fir
 
 import me.tbsten.collector.compiler.CollectorNames
+import me.tbsten.collector.compiler.ItemIdentity
 import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.caches.FirCache
 import org.jetbrains.kotlin.fir.caches.createCache
@@ -20,7 +21,9 @@ import org.jetbrains.kotlin.name.CallableId
 import org.jetbrains.kotlin.name.ClassId
 
 /** An item as a call site sees it, with the X annotations copied onto its holder (for collectAsMap keys). */
-internal class VisibleItem(val fqName: String, val annotations: List<FirAnnotation>)
+internal class VisibleItem(val identity: ItemIdentity, val annotations: List<FirAnnotation>) {
+    val fqName: String get() = identity.fqName
+}
 
 /**
  * Reads hints the way a call site sees them: those of this module and of everything on its classpath.
@@ -67,7 +70,7 @@ class CollectorHints(session: FirSession) : FirExtensionSessionComponent(session
         hints(CollectorNames.missedHint(annotation))
             .filter { it.hasCurrentHintFormat() }
             .mapNotNull { it.parameterClassId(1) }
-            .map { CollectorNames.decodeMissedMarker(it) }
+            .mapNotNull { session.symbolProvider.getClassLikeSymbolByClassId(it)?.missedDeclaration() }
             .distinct().sorted()
 
     /**
@@ -83,6 +86,7 @@ class CollectorHints(session: FirSession) : FirExtensionSessionComponent(session
             for (holderId in holders) {
                 if (holderId in result) continue
                 val holder = session.symbolProvider.getClassLikeSymbolByClassId(holderId) as? FirRegularClassSymbol ?: continue
+                val identity = holder.itemIdentity() ?: continue
                 val scope = session.declaredMemberScope(holder, null)
                 if (scope.getFunctions(asName).isEmpty()) continue
                 val annotations = xs.flatMap { x ->
@@ -90,10 +94,10 @@ class CollectorHints(session: FirSession) : FirExtensionSessionComponent(session
                         fn.resolvedAnnotationsWithArguments.filter { it.annotationTypeRef.coneTypeOrNull?.classId == x }
                     }
                 }
-                result[holderId] = VisibleItem(CollectorNames.decodeHolder(holderId), annotations)
+                result[holderId] = VisibleItem(identity, annotations)
             }
         }
-        return result.values.sortedBy { it.fqName }
+        return result.values.sortedBy { it.identity }
     }
 }
 
