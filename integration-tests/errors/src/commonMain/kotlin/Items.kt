@@ -32,3 +32,7 @@ annotation class Generic<T>
 @CollectorFor<Generic<String>>() object GenericCollector : Collector<String> // E: COLLECTOR_FOR_GENERIC_ANNOTATION
 @CollectorFor<Nothing>() object NothingCollector : Collector<String> // E: COLLECTOR_FOR_NOT_ANNOTATION_CLASS
 @CollectorFor<Annotation>() object AnyAnnotationCollector : Collector<String> // E: COLLECTOR_FOR_NOT_ANNOTATION_CLASS
+
+// A type that does not resolve is the compiler's error alone: the plugin adds nothing, on the Collector or on an item.
+@CollectorFor<Missing>() object MissingCollector : Collector<String> // E: UNRESOLVED_REFERENCE
+@Missing val annotatedWithMissing = "" // E: UNRESOLVED_REFERENCE
