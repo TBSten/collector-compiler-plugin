@@ -15,3 +15,4 @@ dependencyResolutionManagement {
 
 include(":collector-runtime")
 include(":collector-compiler")
+include(":collector-gradle-plugin")

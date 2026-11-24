@@ -10,6 +10,12 @@ class CollectorNamesTest {
     private val route = ClassId.topLevel(FqName("com.example.Route"))
     private val collector = ClassId.topLevel(FqName("com.example.RouteCollector"))
 
+    /** The Gradle plugin passes COMPILER_PLUGIN_ID of gradle.properties; the compiler side has to answer to the same id. */
+    @Test
+    fun pluginIdMatchesGradleProperties() {
+        assertEquals(System.getProperty("collector.compilerPluginId"), CollectorNames.PLUGIN_ID)
+    }
+
     @Test
     fun hintNames() {
         assertEquals("collector.hints", CollectorNames.HINTS_PACKAGE.asString())
