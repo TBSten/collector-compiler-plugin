@@ -32,3 +32,11 @@ fun unseen() {
     LateWeightedCollector.collectAsList() // W: COLLECT_MISSED_ITEMS
     defs.WeightedCollector.collectAsList() // every module saw this one
 }
+
+// A KFunction type is no function type for a Collector: its values are function references, and the collected value
+// of a function is a lambda.
+annotation class Reflected
+
+@CollectorFor<Reflected>() object ReflectedCollector : Collector<kotlin.reflect.KFunction1<Int, Int>>
+
+@Reflected fun increment(a: Int): Int = a + 1 // W: ITEM_NOT_CONVERTIBLE

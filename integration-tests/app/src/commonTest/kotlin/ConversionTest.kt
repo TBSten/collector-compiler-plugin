@@ -5,6 +5,7 @@ import defs.Router
 import defs.ShapeClassCollector
 import defs.ShapeCollector
 import defs.ShapeFactoryCollector
+import defs.ShapeMakerCollector
 import defs.ShapeProviderCollector
 import me.tbsten.collector.collectAsList
 import kotlin.reflect.KClass
@@ -22,6 +23,13 @@ class ConversionTest {
     fun factories() = assertEquals(
         listOf("named:x", "made:x", "sized:1", "stamped:x"),
         ShapeFactoryCollector.collectAsList().map { it("x").id },
+    )
+
+    /** An alias of a function type collects what the function type does. */
+    @Test
+    fun aliasOfAFunctionType() = assertEquals(
+        listOf("named:x", "made:x", "sized:1", "stamped:x"),
+        ShapeMakerCollector.collectAsList().map { it("x").id },
     )
 
     @Test

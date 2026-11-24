@@ -15,6 +15,12 @@ object ShapeCollector : Collector<Shape>
 @CollectorFor<Conv>()
 object ShapeFactoryCollector : Collector<(String) -> Shape>
 
+/** T written through an alias of a function type is that function type. */
+typealias ShapeMaker = (String) -> Shape
+
+@CollectorFor<Conv>()
+object ShapeMakerCollector : Collector<ShapeMaker>
+
 @CollectorFor<Conv>()
 object ShapeClassCollector : Collector<KClass<out Shape>>
 
