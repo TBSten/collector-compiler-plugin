@@ -12,3 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
+
+include(":collector-runtime")
