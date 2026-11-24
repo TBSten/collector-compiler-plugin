@@ -12,6 +12,7 @@ class CollectorGradlePlugin : KotlinCompilerPluginSupportPlugin {
         // Reacts to each Kotlin plugin when it is applied, so the order of the plugins block does not matter.
         RUNTIME_CONFIGURATION_BY_KOTLIN_PLUGIN.forEach { (kotlinPluginId, configurationName) ->
             target.pluginManager.withPlugin(kotlinPluginId) {
+                CollectorKotlinVersionGuard.check(target)
                 target.dependencies.add(configurationName, RUNTIME)
             }
         }
