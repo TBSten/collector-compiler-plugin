@@ -78,7 +78,8 @@ fun compile(module: Module): Compiled {
         classpaths = module.deps.flatMap { it.runtimeDirs }.distinct()
         messageOutputStream = out
         verbose = false
-        kotlincArguments = kotlincArguments + listOf("-Xrender-internal-diagnostic-names")
+        // -Xverify-ir=error: malformed IR from the plugin fails the compilation instead of passing unnoticed (off by default on JVM).
+        kotlincArguments = kotlincArguments + listOf("-Xrender-internal-diagnostic-names", "-Xverify-ir=error")
     }.compile()
     return Compiled(module, result, out.toString())
 }
@@ -109,3 +110,13 @@ fun assertDiagnostics(vararg files: Pair<String, String>, deps: List<Compiled> =
 }
 
 private val MARKER = Regex("""// ([EW]): ([A-Z_]+)\s*$""")
+
+/**
+ * A test that reproduces an open implementation bug. It must currently fail; once the bug is fixed it starts to pass,
+ * and this fails so the wrapper is removed and the test guards the fix.
+ */
+fun knownBug(bug: String, block: () -> Unit) {
+    val failure = runCatching(block).exceptionOrNull()
+        ?: fail("Known bug no longer reproduces ($bug): remove knownBug() so the test guards the fix.")
+    println("Known bug reproduces ($bug): " + failure.message?.lineSequence()?.filter { it.isNotBlank() }?.take(4)?.joinToString(" / "))
+}
