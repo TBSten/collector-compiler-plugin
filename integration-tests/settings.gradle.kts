@@ -20,3 +20,4 @@ dependencyResolutionManagement {
 includeBuild("..")
 
 include(":extlib", ":defs", ":items1", ":items2", ":app")
+include(":compose-defs", ":compose-items", ":compose-app")
