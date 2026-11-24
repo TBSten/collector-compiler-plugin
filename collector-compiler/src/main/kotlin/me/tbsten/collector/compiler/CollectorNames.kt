@@ -22,6 +22,7 @@ internal object CollectorNames {
     const val ITEM_PREFIX = "item_"
     const val HOLDER_PREFIX = "Item_"
     const val AS_PREFIX = "as_"
+    const val ANNOTATIONS_PREFIX = "annotations_"
     private const val ITEM_FILE_PREFIX = "itemHint_"
 
     /** Parameter names of the hints: the annotation X, the Collector C and the item's holder. */
@@ -75,6 +76,10 @@ internal object CollectorNames {
 
     fun asFunction(collector: ClassId): Name =
         Name.identifier(AS_PREFIX + HintNameEncoding.encode(collector.asFqNameString()))
+
+    /** Holder member `annotations_<enc(X)>(): List<X>`: the X annotations of the item, in source order. */
+    fun annotationsFunction(annotation: ClassId): Name =
+        Name.identifier(ANNOTATIONS_PREFIX + HintNameEncoding.encode(annotation.asFqNameString()))
 
     val COLLECTOR_INTERNALS = ClassId(FqName("me.tbsten.collector.internal"), Name.identifier("CollectorInternals"))
 

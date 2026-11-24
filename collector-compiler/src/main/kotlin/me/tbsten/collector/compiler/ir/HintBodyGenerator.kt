@@ -19,7 +19,7 @@ import org.jetbrains.kotlin.ir.util.isObject
 
 /**
  * Phase 1: gives bodies to what FIR declared in `collector.hints` for this module. Hints get an empty body (only
- * their signature matters), holders get their constructor and their `as_<C>()` members.
+ * their signature matters), holders get their constructor and their `as_<C>()` and `annotations_<X>()` members.
  */
 internal class HintBodyGenerator(
     private val context: IrPluginContext,
@@ -27,6 +27,7 @@ internal class HintBodyGenerator(
     private val module: IrModuleFragment,
 ) {
     private val conversion = ItemConversion(context)
+    private val annotations = ItemAnnotations(context, symbols)
 
     /** FQN (as computed on the FIR side) → declaration, for every declaration of this module. */
     private val items: Map<String, IrDeclaration> by lazy {
@@ -63,7 +64,7 @@ internal class HintBodyGenerator(
         debugLog { "fill holder ${holder.name} -> $fqName -> ${target?.let { it::class.simpleName }}" }
         holder.functions.filter { it.isCollectorGenerated() && it.body == null }.forEach { fn ->
             target ?: error("Collector: declaration $fqName not found")
-            conversion.fill(fn, target)
+            if (fn.name.asString().startsWith(CollectorNames.ANNOTATIONS_PREFIX)) annotations.fill(fn, target) else conversion.fill(fn, target)
         }
     }
 
