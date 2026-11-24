@@ -34,6 +34,11 @@ class WithCompanion {
 
 @Conv private object Hidden : Shape { override val id = "hidden" }
 
+// private and nested in a class that is not an object
+class Outer {
+    @Conv private class Inside : Shape { override val id = "inside" }
+}
+
 private object PrivateHost {
     @Conv val inner: Shape = object : Shape { override val id = "private-host" }
 }
