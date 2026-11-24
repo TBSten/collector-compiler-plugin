@@ -5,6 +5,7 @@ package me.tbsten.collector.compiler
  *
  * `.` → `__`, `_` → `_u`, any other character that is not an ASCII letter or digit → `_xHHHH`.
  * The character right after `_` always decides the meaning, so decoding is unambiguous.
+ * A trailing `_k<digits>` is a disambiguator (see [CollectorNames.holder]) and is dropped by [decode].
  */
 internal object HintNameEncoding {
     fun encode(value: String): String = buildString {
@@ -33,6 +34,11 @@ internal object HintNameEncoding {
                     if (i + 6 > value.length) return null
                     val code = value.substring(i + 2, i + 6).toIntOrNull(16) ?: return null
                     append(code.toChar()); i += 6
+                }
+                'k' -> {
+                    val rest = value.substring(i + 2)
+                    if (rest.isEmpty() || !rest.all { it in '0'..'9' }) return null
+                    return@buildString
                 }
                 else -> return null
             }

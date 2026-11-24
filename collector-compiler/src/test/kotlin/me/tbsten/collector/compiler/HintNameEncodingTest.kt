@@ -26,4 +26,11 @@ class HintNameEncodingTest {
         val encoded = HintNameEncoding.encode("x.`weird name`-日本")
         assert(encoded.all { it.isLetterOrDigit() && it.code < 128 || it == '_' }) { encoded }
     }
+
+    @Test
+    fun disambiguatorIsDroppedOnDecode() {
+        assertEquals("a.k5", CollectorNames.decodeHolderName("Item_" + HintNameEncoding.encode("a.k5")))
+        assertEquals("a.Foo", CollectorNames.decodeHolderName(CollectorNames.holder("a.Foo", 2).shortClassName.asString()))
+        assertEquals("a.foo_k1", CollectorNames.decodeHolderName(CollectorNames.holder("a.foo_k1").shortClassName.asString()))
+    }
 }
