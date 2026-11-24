@@ -9,6 +9,7 @@ import org.jetbrains.kotlin.ir.builders.irDelegatingConstructorCall
 import org.jetbrains.kotlin.ir.declarations.IrClass
 import org.jetbrains.kotlin.ir.declarations.IrDeclaration
 import org.jetbrains.kotlin.ir.declarations.IrDeclarationOrigin
+import org.jetbrains.kotlin.ir.declarations.IrEnumEntry
 import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
 import org.jetbrains.kotlin.ir.declarations.IrProperty
 import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
@@ -75,6 +76,7 @@ internal class HintBodyGenerator(
                 is IrClass -> decl.name.asString()
                 is IrSimpleFunction -> decl.name.asString()
                 is IrProperty -> decl.name.asString()
+                is IrEnumEntry -> decl.name.asString()
                 else -> return
             }
             if (decl.origin is IrDeclarationOrigin.GeneratedByPlugin) return

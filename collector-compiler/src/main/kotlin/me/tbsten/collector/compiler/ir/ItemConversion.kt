@@ -21,6 +21,7 @@ import org.jetbrains.kotlin.ir.declarations.IrDeclarationContainer
 import org.jetbrains.kotlin.ir.declarations.IrDeclarationOrigin
 import org.jetbrains.kotlin.ir.declarations.IrDeclarationWithName
 import org.jetbrains.kotlin.ir.declarations.IrDeclarationWithVisibility
+import org.jetbrains.kotlin.ir.declarations.IrEnumEntry
 import org.jetbrains.kotlin.ir.declarations.IrFile
 import org.jetbrains.kotlin.ir.declarations.IrParameterKind
 import org.jetbrains.kotlin.ir.declarations.IrProperty
@@ -28,6 +29,7 @@ import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
 import org.jetbrains.kotlin.ir.expressions.IrCall
 import org.jetbrains.kotlin.ir.expressions.IrExpression
 import org.jetbrains.kotlin.ir.expressions.impl.IrClassReferenceImpl
+import org.jetbrains.kotlin.ir.expressions.impl.IrGetEnumValueImpl
 import org.jetbrains.kotlin.ir.types.IrSimpleType
 import org.jetbrains.kotlin.ir.types.IrType
 import org.jetbrains.kotlin.ir.types.IrTypeSystemContextImpl
@@ -118,6 +120,12 @@ internal class ItemConversion(private val context: IrPluginContext) {
     /** Turns [target] into a value of [t]. `conversionProblem()` on the FIR side accepted this conversion. */
     private fun IrBuilderWithScope.convert(t: IrType, target: IrDeclaration): IrExpression = when (target) {
         is IrClass -> convertClass(t, target)
+        // an entry is like an object, except that it has no class of its own to reference
+        is IrEnumEntry -> {
+            val enumType = target.parentAsClass.defaultType
+            val value = { b: IrBuilderWithScope -> IrGetEnumValueImpl(b.startOffset, b.endOffset, enumType, target.symbol) }
+            if (enumType.isSubtypeOf(t, typeSystem)) value(this) else irLambda(t) { b, _ -> value(b) }
+        }
         is IrProperty -> {
             val getter = target.getter!!
             irCall(getter.symbol).apply { setObjectReceiver(this@convert, getter) }

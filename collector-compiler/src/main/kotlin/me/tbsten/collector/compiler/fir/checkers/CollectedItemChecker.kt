@@ -13,6 +13,7 @@ import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
 import org.jetbrains.kotlin.fir.analysis.checkers.declaration.FirBasicDeclarationChecker
 import org.jetbrains.kotlin.fir.declarations.DirectDeclarationsAccess
 import org.jetbrains.kotlin.fir.declarations.FirDeclaration
+import org.jetbrains.kotlin.fir.declarations.FirEnumEntry
 import org.jetbrains.kotlin.fir.declarations.FirNamedFunction
 import org.jetbrains.kotlin.fir.declarations.FirProperty
 import org.jetbrains.kotlin.fir.declarations.FirRegularClass
@@ -66,6 +67,7 @@ internal object CollectedItemChecker : FirBasicDeclarationChecker(MppCheckerKind
         when (declaration) {
             is FirValueParameter -> return "parameters can not be collected"
             is FirTypeAlias -> return "type aliases can not be collected"
+            is FirEnumEntry -> return null
             is FirRegularClass, is FirNamedFunction, is FirProperty -> Unit
             else -> return "only classes, objects, properties and functions can be collected"
         }
