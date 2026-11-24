@@ -29,6 +29,8 @@ configurations.matching { it.name.startsWith("test") }.configureEach {
 tasks.test {
     // Each kctfork compilation spins up a compiler; the suite is CPU-bound and benefits from a larger heap.
     maxHeapSize = "2g"
+    // golden files are rewritten with -Pcollector.updateGolden
+    systemProperty("collector.updateGolden", providers.gradleProperty("collector.updateGolden").isPresent.toString())
     maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceAtLeast(1)
 }
 

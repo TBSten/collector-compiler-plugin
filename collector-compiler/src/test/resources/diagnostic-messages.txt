@@ -1,0 +1,15 @@
+COLLECTOR_FOR_DUPLICATE: @CollectorFor<Y> is repeated on the same object.
+COLLECTOR_FOR_NOT_COLLECTOR: An object annotated with @CollectorFor must implement Collector<T>.
+COLLECTOR_FOR_NOT_OBJECT: @CollectorFor can only be used on an object.
+COLLECTOR_FOR_TAG_NOT_LITERAL: The tag of @CollectorFor must be a string literal.
+COLLECT_ANNOTATION_TYPE_MISMATCH: The annotation type argument must be a supertype of every collected annotation, but these are not: defs.Flag.
+COLLECT_AS_MAP_DUPLICATE_KEY: collectAsMap() would have the same key twice: Flag(key = "k") (K1, K2).
+COLLECT_CALLABLE_REFERENCE: Collect functions can not be referenced; call them directly (the call is replaced at compile time).
+COLLECT_SINGLE_COUNT: collectSingle() needs exactly one item, but 2 items were found (P1, P2). Use collectSingleOrNull() or collectAsList() instead.
+COLLECT_SINGLE_OR_NULL_COUNT: collectSingleOrNull() allows at most one item, but 2 items were found (P1, P2). Use collectAsList() instead.
+COLLECT_TAG_NOT_CONSTANT: The tag must be a compile-time constant (a string literal or a const val).
+COLLECT_TAG_TYPE_MISMATCH: Every Collector with this tag must collect a subtype of the requested type, but these do not: Tagged (Collector<Plugin>).
+ITEM_NAME_CLASH: Collected declarations must have distinct names, but f is used more than once (overloads, and declarations of the same name in other files of the package, are not supported).
+ITEM_NOT_ALLOWED_HERE: This declaration can not be collected: members of Holder need an instance; move it into an object or to the top level.
+ITEM_NOT_CONVERTIBLE: No Collector visible here can collect this declaration, so it is skipped: Zs: object NotAPlugin is neither a subtype of T, its KClass nor () -> it.
+RECEIVER_NOT_COLLECTOR_OBJECT: The receiver of collect functions must be a direct reference to an object annotated with @CollectorFor.
