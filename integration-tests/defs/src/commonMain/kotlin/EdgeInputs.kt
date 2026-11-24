@@ -26,3 +26,13 @@ annotation class Setting
 
 @CollectorFor<Setting>()
 object SettingCollector : Collector<String>
+
+// meta-annotations (like Compose multipreviews): an annotation class carrying X counts as X where it is used
+annotation class Labeled(val label: String)
+
+@CollectorFor<Labeled>()
+object LabeledCollector : Collector<String>
+
+/** A meta-annotation from a dependency (read from metadata / klib by the item module). */
+@Labeled("from-defs")
+annotation class DefsLabel

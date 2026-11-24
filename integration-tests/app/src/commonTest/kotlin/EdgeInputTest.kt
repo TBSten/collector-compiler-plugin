@@ -1,11 +1,14 @@
 import defs.EnumKindCollector
 import defs.PaletteCollector
 import defs.PaletteFactoryCollector
+import defs.Labeled
+import defs.LabeledCollector
 import defs.SettingCollector
 import defs.Tinted
 import edge.Color
 import edge.Size
 import me.tbsten.collector.collectAsList
+import me.tbsten.collector.collectWithAnnotation
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -34,5 +37,14 @@ class EdgeInputTest {
         var applied: List<Tinted>? = null
         PaletteCollector.apply { applied = collectAsList() }
         assertEquals(expected, applied)
+    }
+
+    @Test
+    fun metaAnnotationsCountAsTheirAnnotation() {
+        // annotation classes themselves are not items
+        assertEquals(listOf("dependency", "own"), LabeledCollector.collectAsList())
+        val labels = LabeledCollector.collectWithAnnotation<Labeled, String>().map { it.first.label }
+        // in source order, meta-annotations expanded in place
+        assertEquals(listOf("from-defs", "direct", "from-defs", "own"), labels)
     }
 }

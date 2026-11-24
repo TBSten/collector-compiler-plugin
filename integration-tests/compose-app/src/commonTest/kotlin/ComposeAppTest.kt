@@ -4,7 +4,10 @@ import androidx.compose.runtime.Recomposer
 import composedefs.PreviewCollector
 import composedefs.rendered
 import kotlinx.coroutines.Dispatchers
+import androidx.compose.runtime.Composable
+import ext.Preview
 import me.tbsten.collector.collectAsList
+import me.tbsten.collector.collectWithAnnotation
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -22,7 +25,15 @@ class ComposeAppTest {
         val previews = PreviewCollector.collectAsList()
         val composition = Composition(UnitApplier(), Recomposer(Dispatchers.Unconfined))
         composition.setContent { previews.forEach { it() } }
-        assertEquals(listOf("home", "settings"), rendered)
+        // FQN order; each declaration once, however many @Preview it carries
+        assertEquals(listOf("everywhere", "home", "settings", "themed"), rendered)
         composition.dispose()
+    }
+
+    @Test
+    fun multipreviewsGiveOnePairPerPreview() {
+        val names = PreviewCollector.collectWithAnnotation<Preview, @Composable () -> Unit>().map { it.first.name }
+        // EverywherePreview: AllPreviews = ThemePreviews (light, dark) + large; ThemedPreview: light, dark
+        assertEquals(listOf("light", "dark", "large", "", "settings", "light", "dark"), names)
     }
 }
