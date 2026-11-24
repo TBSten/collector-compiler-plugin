@@ -21,8 +21,8 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
-      - name: Compiler unit tests
-        run: ./gradlew :collector-compiler:test
+      - name: Unit tests (compiler / Gradle plugin)
+        run: ./gradlew :collector-compiler:test :collector-gradle-plugin:test
       - name: Integration tests (jvm / js / wasmJs / linuxX64)
         working-directory: integration-tests
         run: ./gradlew allTests --continue

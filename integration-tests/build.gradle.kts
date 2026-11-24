@@ -6,7 +6,8 @@ plugins {
 
 configure(subprojects.filter { !it.name.startsWith("compose-") }) {
     apply(plugin = "org.jetbrains.kotlin.multiplatform")
-    if (name != "extlib") apply(plugin = "me.tbsten.collector")
+    // extlib: an "external" library; oldhints: hand-written hints of other plugin versions
+    if (name != "extlib" && name != "oldhints") apply(plugin = "me.tbsten.collector")
     extensions.configure<org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension> {
         jvm()
         js { nodejs() }

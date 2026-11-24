@@ -3,14 +3,16 @@ plugins {
     `java-gradle-plugin`
 }
 
-// BuildConfig: the coordinates and the compiler plugin id from gradle.properties (the single source of truth), so the
-// plugin never hard-codes a value that could drift from the published artifacts. Registering the task as a source
-// directory wires the dependency for everything that reads the source set.
+// BuildConfig: the coordinates and the compiler plugin id from gradle.properties, and the Kotlin version from the
+// version catalog (the single sources of truth), so the plugin never hard-codes a value that could drift from the
+// published artifacts. Registering the task as a source directory wires the dependency for everything that reads the
+// source set.
 val generateBuildConfig = tasks.register("generateBuildConfig") {
     val values = mapOf(
         "GROUP" to project.group.toString(),
         "VERSION" to project.version.toString(),
         "COMPILER_PLUGIN_ID" to providers.gradleProperty("COMPILER_PLUGIN_ID").get(),
+        "KOTLIN" to libs.versions.kotlin.get(),
     )
     val outputDir = layout.buildDirectory.dir("generated/buildConfig/kotlin")
     inputs.properties(values)
@@ -35,6 +37,7 @@ kotlin.sourceSets.named("main") { kotlin.srcDir(generateBuildConfig) }
 
 dependencies {
     compileOnly(libs.kotlin.gradle.plugin)
+    testImplementation(kotlin("test"))
 }
 
 gradlePlugin {

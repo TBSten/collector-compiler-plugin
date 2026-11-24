@@ -118,9 +118,11 @@ class CollectorHintGenerator(session: FirSession) : FirDeclarationGenerationExte
         if (callableId.packageName != CollectorNames.HINTS_PACKAGE) return emptyList()
         val unit = session.builtinTypes.unitType.coneType
         return items.hints[callableId].orEmpty().map { hint ->
-            createTopLevelFunction(CollectorPluginKey, callableId, unit, containingFileName = hint.fileName) {
+            val function = createTopLevelFunction(CollectorPluginKey, callableId, unit, containingFileName = hint.fileName) {
                 hint.parameters.forEach { (name, type) -> valueParameter(name, type.constructClassLikeType()) }
-            }.symbol
+            }
+            function.replaceAnnotations(function.annotations + hintFormatMarker())
+            function.symbol
         }
     }
 }

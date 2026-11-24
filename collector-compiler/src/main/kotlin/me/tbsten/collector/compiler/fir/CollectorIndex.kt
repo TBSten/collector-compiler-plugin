@@ -13,6 +13,7 @@ import org.jetbrains.kotlin.fir.extensions.predicateBasedProvider
 import org.jetbrains.kotlin.fir.resolve.providers.dependenciesSymbolProvider
 import org.jetbrains.kotlin.fir.symbols.SymbolInternals
 import org.jetbrains.kotlin.fir.symbols.impl.FirClassSymbol
+import org.jetbrains.kotlin.fir.symbols.impl.FirNamedFunctionSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
 import org.jetbrains.kotlin.fir.types.classId
@@ -61,11 +62,22 @@ class CollectorIndex(session: FirSession) : FirExtensionSessionComponent(session
             .distinct()
     }
 
-    internal val classpathCollectors: List<CollectorDef> by session.firCachesFactory.createLazyValue {
+    /** Every `collectorFor_` hint on the classpath, of any hint format. */
+    private val classpathCollectorHints: List<FirNamedFunctionSymbol> by session.firCachesFactory.createLazyValue {
         val provider = session.dependenciesSymbolProvider
         val names = provider.symbolNamesProvider.getTopLevelCallableNamesInPackage(CollectorNames.HINTS_PACKAGE).orEmpty()
         names.filter { it.asString().startsWith(CollectorNames.COLLECTOR_FOR_PREFIX) }
             .flatMap { name -> provider.getTopLevelFunctionSymbols(CollectorNames.HINTS_PACKAGE, name) }
+    }
+
+    /** `collectorFor_` hints written by another hint format: they are not read, and items they concern are reported. */
+    internal val incompatibleCollectorHints: List<FirNamedFunctionSymbol> by session.firCachesFactory.createLazyValue {
+        classpathCollectorHints.filter { !it.hasCurrentHintFormat() }
+    }
+
+    internal val classpathCollectors: List<CollectorDef> by session.firCachesFactory.createLazyValue {
+        val provider = session.dependenciesSymbolProvider
+        classpathCollectorHints.filter { it.hasCurrentHintFormat() }
             .mapNotNull { fn ->
                 val params = fn.valueParameterSymbols
                 val x = params.getOrNull(0)?.resolvedReturnType?.classId ?: return@mapNotNull null
