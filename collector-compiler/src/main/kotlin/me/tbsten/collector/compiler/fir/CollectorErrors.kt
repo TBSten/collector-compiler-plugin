@@ -3,6 +3,7 @@ package me.tbsten.collector.compiler.fir
 import me.tbsten.collector.compiler.CollectorNames
 import org.jetbrains.kotlin.diagnostics.KtDiagnosticFactoryToRendererMap
 import org.jetbrains.kotlin.diagnostics.KtDiagnosticsContainer
+import org.jetbrains.kotlin.diagnostics.SourceElementPositioningStrategies
 import org.jetbrains.kotlin.diagnostics.error0
 import org.jetbrains.kotlin.diagnostics.error1
 import org.jetbrains.kotlin.diagnostics.error2
@@ -12,6 +13,12 @@ import org.jetbrains.kotlin.diagnostics.warning1
 import org.jetbrains.kotlin.psi.KtElement
 
 object CollectorErrors : KtDiagnosticsContainer() {
+    /**
+     * On a declaration, only its name is marked, not the annotations, modifiers and body around it. The strategy
+     * falls back to the whole element for what has no name, such as a call.
+     */
+    private val AT_NAME = SourceElementPositioningStrategies.DECLARATION_NAME
+
     /** `collect*()` was called on something other than a `@CollectorFor` object reference. */
     val RECEIVER_NOT_COLLECTOR_OBJECT by error0<KtElement>()
 
@@ -37,16 +44,16 @@ object CollectorErrors : KtDiagnosticsContainer() {
     val COLLECT_CALLABLE_REFERENCE by error0<KtElement>()
 
     /** Hints written by another version of the plugin (arg: those hints). */
-    val HINT_FORMAT_MISMATCH by error1<KtElement, String>()
+    val HINT_FORMAT_MISMATCH by error1<KtElement, String>(AT_NAME)
 
     /** `tag` of `@CollectorFor` that is not a string literal. */
     val COLLECTOR_FOR_TAG_NOT_LITERAL by error0<KtElement>()
 
     /** `@CollectorFor` on something other than an object. */
-    val COLLECTOR_FOR_NOT_OBJECT by error0<KtElement>()
+    val COLLECTOR_FOR_NOT_OBJECT by error0<KtElement>(AT_NAME)
 
     /** `@CollectorFor` on an object that does not implement `Collector<T>`. */
-    val COLLECTOR_FOR_NOT_COLLECTOR by error0<KtElement>()
+    val COLLECTOR_FOR_NOT_COLLECTOR by error0<KtElement>(AT_NAME)
 
     /** X of `@CollectorFor<X>` that is not an annotation class: `Nothing`, `Annotation` (arg: X). */
     val COLLECTOR_FOR_NOT_ANNOTATION_CLASS by error1<KtElement, String>()
@@ -55,16 +62,16 @@ object CollectorErrors : KtDiagnosticsContainer() {
     val COLLECTOR_FOR_GENERIC_ANNOTATION by error1<KtElement, String>()
 
     /** `@CollectorFor` written through an import alias or a type alias, which hides the Collector from the plugin. */
-    val COLLECTOR_FOR_ALIASED by error0<KtElement>()
+    val COLLECTOR_FOR_ALIASED by error0<KtElement>(AT_NAME)
 
     /** An annotation the plugin read differently from the compiler (arg: the annotations concerned). */
-    val ANNOTATION_MISREAD by error1<KtElement, String>()
+    val ANNOTATION_MISREAD by error1<KtElement, String>(AT_NAME)
 
     /**
      * A collected annotation reached through an annotation class of a Java source of this module, which the plugin
      * can not look into (arg: those annotation classes).
      */
-    val META_ANNOTATION_IN_JAVA_SOURCE by error1<KtElement, String>()
+    val META_ANNOTATION_IN_JAVA_SOURCE by error1<KtElement, String>(AT_NAME)
 
     /**
      * A collected annotation with SOURCE retention on a public annotation class: other modules that use the annotation
@@ -79,19 +86,19 @@ object CollectorErrors : KtDiagnosticsContainer() {
     val META_ANNOTATION_PRIVATE_ARGUMENT by error2<KtElement, String, String>()
 
     /** The same annotation X twice on one Collector (arg: X). */
-    val COLLECTOR_FOR_DUPLICATE by warning1<KtElement, String>()
+    val COLLECTOR_FOR_DUPLICATE by warning1<KtElement, String>(AT_NAME)
 
     /** A collected annotation on a declaration that can not be collected (arg: why). */
-    val ITEM_NOT_ALLOWED_HERE by error1<KtElement, String>()
+    val ITEM_NOT_ALLOWED_HERE by error1<KtElement, String>(AT_NAME)
 
     /** Two collected declarations with the same name in one file or one object (arg: the name). */
-    val ITEM_NAME_CLASH by error1<KtElement, String>()
+    val ITEM_NAME_CLASH by error1<KtElement, String>(AT_NAME)
 
     /** A collected annotation on an actual declaration that its expect declaration, the item, does not have (arg: the annotations). */
-    val ITEM_ANNOTATION_ONLY_ON_ACTUAL by warning1<KtElement, String>()
+    val ITEM_ANNOTATION_ONLY_ON_ACTUAL by warning1<KtElement, String>(AT_NAME)
 
     /** A collected declaration that no visible Collector can convert (arg: per-Collector reasons). */
-    val ITEM_NOT_CONVERTIBLE by warning1<KtElement, String>()
+    val ITEM_NOT_CONVERTIBLE by warning1<KtElement, String>(AT_NAME)
 
     /**
      * Declarations with a collected annotation that the Collector of the call does not get, because it was not
