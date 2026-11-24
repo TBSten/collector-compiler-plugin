@@ -63,7 +63,7 @@ object XCollector : Collector<T>  // T: 取り出すときの型
 - private な宣言も集められる（公開用の橋渡し関数が生成される）。
 - class を作るときに呼ぶコンストラクタは public か internal のものだけ（private・protected は対象外）。
 - `Any` のようにインスタンスも `KClass` も受け取れる T では、作れる class はインスタンスになり、作れないもの（interface や、呼べるコンストラクタのない class）は `Cls::class` になる。
-- class のメンバー、inner class、ローカル宣言、引数、型エイリアスに付けたものは集めない（警告 `ITEM_NOT_ALLOWED_HERE`）。エラーにはしないので、`@Serializable` のようにメンバーにも付けるアノテーションを X にしても、既存のコードはそのままコンパイルできる。
+- class のメンバー、inner class、ローカル宣言、引数、型エイリアスに付けたものは集めない（警告 `ITEM_NOT_ALLOWED_HERE`）。エラーにはしないので、`@Serializable` のようにメンバーにも付けるアノテーションを X にしても、既存のコードはそのままコンパイルできる（警告の止め方は「コンパイルエラーと警告」）。
 - 変換できない組み合わせは、その Collector では集めない。見えているどの Collector にも合わなければ警告。
 - 1 つのファイル、または 1 つの object の中では、集める宣言の名前を重複させられない（オーバーロードや、同名の関数とプロパティはエラー）。同じパッケージの別ファイルなら同じ名前でよい（画面ごとのファイルに置く `private fun Preview()` など）。
 - 細かい入力の扱い:
@@ -166,6 +166,19 @@ val byPath: Map<Screen, Page> = ScreenCollector.collectAsMap()   // 同じキー
 | `COLLECT_MISSED_ITEMS`（警告） | その Collector が見えないモジュールやソースセットで付けられ、集められなかった宣言がある |
 | `META_ANNOTATION_SOURCE_RETENTION`（警告） | 公開されたメタアノテーションに付けた X が SOURCE retention（ほかのモジュールからは見えない） |
 | `COLLECTOR_FOR_DUPLICATE`（警告） | 同じ `@CollectorFor<X>` の重複 |
+
+警告は Kotlin のほかの警告と同じ方法で止められる。警告をエラーにしているビルド（`allWarningsAsErrors`）で、`@Serializable` のような外部のアノテーションを X にしたときに使う。
+
+- 宣言ごと: `@Suppress("ITEM_NOT_ALLOWED_HERE")`。ファイル全体なら `@file:Suppress("ITEM_NOT_ALLOWED_HERE")`。
+- モジュール全体: コンパイラ引数 `-Xwarning-level=ITEM_NOT_ALLOWED_HERE:disabled`。`disabled` を `warning` にすると、`allWarningsAsErrors` でも警告のまま残る。Collector プラグインを適用していないモジュールに書くと、コンパイラがその名前を知らないのでエラーになる。
+
+```kotlin
+kotlin {
+    compilerOptions {
+        freeCompilerArgs.add("-Xwarning-level=ITEM_NOT_ALLOWED_HERE:disabled")
+    }
+}
+```
 
 ## モジュール
 
