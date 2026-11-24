@@ -100,24 +100,20 @@ class ConversionTest {
             boxOf("C.collectAsList().map { it.toString() }"),
         )
         assertEquals(listOf("Two(7)"), result)
-        // With T = Any the class is accepted (its KClass is an Any), but the holder then calls the private
-        // constructor: FIR and IR pick different conversions.
-        val hidden = compile("main", files = arrayOf(
+        // A class without a callable constructor is collected as its KClass when T accepts that (here T = Any).
+        // FIR and IR once picked different conversions here and the holder called the private constructor.
+        val hidden = box(
             defs("Any"),
             "Items.kt" to """
                 package items
                 @defs.E class Hidden private constructor()
             """,
-        ))
-        knownBug("A7: a class whose only no-argument constructor is private is instantiated through it (invalid IR)") {
-            hidden.requireOk()
-        }
+            boxOf("C.collectAsList().map { (it as kotlin.reflect.KClass<*>).simpleName }"),
+        )
+        assertEquals(listOf("Hidden"), hidden)
     }
 
-    /**
-     * A3 with T = Any: an interface is only convertible as its KClass (KClass<I> is an Any), so FIR accepts it, but
-     * the IR side tries to instantiate it and crashes looking for a constructor. Same root cause as the A7 case.
-     */
+    /** A3 with T = Any: an interface can't be instantiated, so it is collected as its KClass (it once crashed IR). */
     @Test
     fun a3_interfaceWithTAny() {
         val compiled = compile("main", files = arrayOf(
@@ -126,11 +122,9 @@ class ConversionTest {
                 package items
                 @defs.E interface Plugin
             """,
-            boxFile("C.collectAsList().size"),
+            boxFile("C.collectAsList().map { (it as kotlin.reflect.KClass<*>).simpleName }"),
         ))
-        knownBug("A3/A7: with T = Any, FIR accepts a class through its KClass but IR converts by constructor (interface: compiler crash)") {
-            assertEquals(1, compiled.box())
-        }
+        assertEquals(listOf("Plugin"), compiled.box())
     }
 
     /** A8: a top-level val is its value; a var is read when the items are retrieved. */
