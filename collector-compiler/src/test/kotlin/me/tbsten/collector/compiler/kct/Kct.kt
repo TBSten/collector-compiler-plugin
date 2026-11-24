@@ -92,24 +92,44 @@ fun box(vararg files: Pair<String, String>, deps: List<Compiled> = emptyList()):
     compile("main", deps, true, *files).box()
 
 /**
- * Compiles [files] and checks that the reported diagnostics are exactly the `// E: ID` / `// W: ID` markers at the
- * end of lines (same convention as integration-tests/scripts/error-check.sh).
+ * Compiles [files] and checks that the reported diagnostics are exactly the markers at the end of lines:
+ * `// E: ID` (error), `// W: ID` (warning) — the same convention as integration-tests/scripts/error-check.sh — and
+ * `// E|W: ID`, which accepts either severity. The last one is for ITEM_NOT_CONVERTIBLE, whose severity is still
+ * undecided (spec/impl difference D1), so tests don't pin it.
  */
 fun assertDiagnostics(vararg files: Pair<String, String>, deps: List<Compiled> = emptyList()): Compiled {
     val compiled = compile("main", deps, true, *files)
-    val expected = files.flatMap { (path, src) ->
+    val markers = files.flatMap { (path, src) ->
         src.trimIndent().lines().mapIndexedNotNull { i, line ->
-            MARKER.find(line)?.let { "${File(path).name}:${i + 1} ${it.groupValues[1].lowercase()} ${it.groupValues[2]}" }
+            MARKER.find(line)?.let { Triple("${File(path).name}:${i + 1}", it.groupValues[1], it.groupValues[2]) }
         }
-    }.toSet()
-    val actual = compiled.diagnostics
+    }
+    val anySeverity = markers.filter { it.second == "E|W" }.mapTo(mutableSetOf()) { "${it.first} ${it.third}" }
+    val expected = markers.mapTo(mutableSetOf()) { (at, sev, id) -> if (sev == "E|W") "$at * $id" else "$at ${sev.lowercase()} $id" }
+    val actual = compiled.diagnostics.mapTo(mutableSetOf()) { d ->
+        val (at, sev, id) = d.split(" ")
+        if ("$at $id" in anySeverity) "$at * $id" else "$at $sev $id"
+    }
     assertEquals(expected.sorted().joinToString("\n"), actual.sorted().joinToString("\n"), "Diagnostics differ. Compiler output:\n${compiled.messages}")
-    val expectFailure = expected.any { it.contains(" e ") }
-    if (expectFailure == compiled.ok) fail("Expected compilation to ${if (expectFailure) "fail" else "succeed"}:\n${compiled.messages}")
+    if (anySeverity.isEmpty()) {
+        val expectFailure = markers.any { it.second == "E" }
+        if (expectFailure == compiled.ok) fail("Expected compilation to ${if (expectFailure) "fail" else "succeed"}:\n${compiled.messages}")
+    }
     return compiled
 }
 
-private val MARKER = Regex("""// ([EW]): ([A-Z_]+)\s*$""")
+private val MARKER = Regex("""// (E|W|E\|W): ([A-Z_]+)\s*$""")
+
+/**
+ * Runs a check of a spec-decided behavior that the implementation does not follow yet and whose direction is still
+ * undecided ([id] is one of D1–D11 in the spec's 08-8). It reports whether the implementation matches the spec but
+ * never fails the build, so the decision is not pinned by the test suite.
+ */
+fun undecided(id: String, block: () -> Unit) {
+    val failure = runCatching(block).exceptionOrNull()
+    if (failure == null) println("Undecided $id: the implementation matches the spec")
+    else println("Undecided $id: differs from the spec: " + failure.message?.lineSequence()?.filter { it.isNotBlank() }?.take(4)?.joinToString(" / "))
+}
 
 /**
  * A test that reproduces an open implementation bug. It must currently fail; once the bug is fixed it starts to pass,
