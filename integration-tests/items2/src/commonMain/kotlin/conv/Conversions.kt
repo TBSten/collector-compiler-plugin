@@ -42,10 +42,14 @@ object Host {
     @Conv private val secret: Shape = object : Shape { override val id = "secret" }
 }
 
-// names that differ only in case get separate holders (Item_conv__Dup / Item_conv__dup_k1)
 @Conv object Dup : Shape { override val id = "Dup" }
 
 @Conv val dup: Shape = object : Shape { override val id = "dup" }
+
+// names that differ only in case get separate holders (Item_…__Twin_in_… / Item_…__twin_in_…_k1)
+@Conv fun Twin(): Shape = object : Shape { override val id = "Twin" }
+
+@Conv fun twin(): Shape = object : Shape { override val id = "twin" }
 
 // an overload that is not collected, declared first: the item is the annotated function
 fun stamped(width: Int, height: Int): Shape = object : Shape { override val id = "stamped:${width}x$height" }

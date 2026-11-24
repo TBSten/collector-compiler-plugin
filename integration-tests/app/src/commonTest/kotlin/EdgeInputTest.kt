@@ -5,6 +5,7 @@ import defs.Labeled
 import defs.LabeledCollector
 import defs.SettingCollector
 import defs.Tinted
+import defs.TwiceCollector
 import edge.Color
 import edge.Size
 import me.tbsten.collector.collectAsList
@@ -46,5 +47,11 @@ class EdgeInputTest {
         val labels = LabeledCollector.collectWithAnnotation<Labeled, String>().map { it.first.label }
         // in source order, meta-annotations expanded in place
         assertEquals(listOf("from-defs", "direct", "from-defs", "own"), labels)
+    }
+
+    /** A package and an outer class can spell the same FQN in two modules: both are items, ordered by module. */
+    @Test
+    fun packageAndOuterClassWithTheSameName() {
+        assertEquals(listOf("package edge.twice", "object edge.twice"), TwiceCollector.collectAsList())
     }
 }

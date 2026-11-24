@@ -32,7 +32,7 @@ class ConversionTest {
 
     @Test
     fun providers() = assertEquals(
-        listOf("circle", "Dup", "hidden", "square", "companion"),
+        listOf("circle", "Dup", "hidden", "square", "Twin", "companion", "twin"),
         ShapeProviderCollector.collectAsList().map { it().id },
     )
 

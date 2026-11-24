@@ -36,3 +36,16 @@ object LabeledCollector : Collector<String>
 /** A meta-annotation from a dependency (read from metadata / klib by the item module). */
 @Labeled("from-defs")
 annotation class DefsLabel
+
+// two modules, one FQN: `edge.twice.c` is a property of package edge.twice in one module and of object edge.twice in
+// the other
+annotation class Twice
+
+@CollectorFor<Twice>()
+object TwiceCollector : Collector<String>
+
+// two modules, one FQN: the top-level property `edge.module` of two modules (the JVM allows it when the files differ)
+annotation class PerModule
+
+@CollectorFor<PerModule>()
+object PerModuleCollector : Collector<String>
