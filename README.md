@@ -124,7 +124,7 @@ val byPath: Map<Screen, Page> = ScreenCollector.collectAsMap()   // 同じキー
 
 - **アイテムを含むモジュールから Collector が見えている必要がある。** Collector が見えないモジュールのアイテムは集められない。自前のアノテーションなら、Collector を同じファイルに置けば必ず見える。
   - ソースセットでも同じ。Collector を `jvmMain` などプラットフォーム側に置くと、`commonMain` のアイテムからは見えないので集められない。Collector は `commonMain` に置く。
-  - 見えずに集められなかった宣言があると、取り出す側の呼び出しで警告（`COLLECT_MISSED_ITEMS`）が出る。
+  - 見えずに集められなかった宣言があると、取り出す側の呼び出しで警告（`COLLECT_MISSED_ITEMS`）が出る。同じアノテーションの別の Collector だけが見えていた場合（共通モジュールの Collector に加えて、アプリ側で Collector を足したときなど）も同じ。
 - **取り出すモジュールから、アイテムを含むモジュールが見えている必要がある。** `implementation` の推移依存の先にあるアイテムは見えないので、`api` で公開する。
 - ほかのバージョンの Collector でビルドされたモジュールが混ざると、エラー（`HINT_FORMAT_MISMATCH`）で再ビルドを促す。
 - **`@CollectorFor` はその名前のまま書く。** import の別名（`import …CollectorFor as Register`）や typealias 経由だと Collector として登録されないので、エラー（`COLLECTOR_FOR_ALIASED`）にしている。
@@ -150,7 +150,7 @@ val byPath: Map<Screen, Page> = ScreenCollector.collectAsMap()   // 同じキー
 | `HINT_FORMAT_MISMATCH` | 別バージョンの Collector でビルドされたモジュール |
 | `ITEM_NOT_CONVERTIBLE`（警告） | どの Collector の T にも変換できない |
 | `ITEM_ANNOTATION_ONLY_ON_ACTUAL`（警告） | expect がアイテムの宣言で、actual にだけ付けたアノテーションがある（集められない） |
-| `COLLECT_MISSED_ITEMS`（警告） | Collector が見えないモジュールで付けられ、集められなかった宣言がある |
+| `COLLECT_MISSED_ITEMS`（警告） | その Collector が見えないモジュールやソースセットで付けられ、集められなかった宣言がある |
 | `COLLECTOR_FOR_DUPLICATE`（警告） | 同じ `@CollectorFor<X>` の重複 |
 
 ## モジュール
