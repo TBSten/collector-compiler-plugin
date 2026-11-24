@@ -18,8 +18,6 @@ import org.jetbrains.kotlin.fir.symbols.impl.FirClassLikeSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirClassSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirConstructorSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirNamedFunctionSymbol
-import org.jetbrains.kotlin.fir.types.classId
-import org.jetbrains.kotlin.fir.types.coneTypeOrNull
 import org.jetbrains.kotlin.fir.types.constructClassLikeType
 import org.jetbrains.kotlin.name.CallableId
 import org.jetbrains.kotlin.name.ClassId
@@ -29,7 +27,7 @@ import org.jetbrains.kotlin.name.SpecialNames
 import org.jetbrains.kotlin.name.StandardClassIds
 
 /**
- * Declares the hints and the holder objects of this module in `collector.hints`. Only signatures are generated here;
+ * Declares the hints, the holder objects and the missed markers of this module in `collector.hints`. Only signatures are generated here;
  * the bodies are filled in IR.
  *
  * What to generate comes from the session components [CollectorIndex] and [CollectorItemIndex].
@@ -41,11 +39,12 @@ class CollectorHintGenerator(session: FirSession) : FirDeclarationGenerationExte
 
     override fun hasPackage(packageFqName: FqName): Boolean = packageFqName == CollectorNames.HINTS_PACKAGE
 
-    override fun getTopLevelClassIds(): Set<ClassId> = items.own.byHolder.keys
+    override fun getTopLevelClassIds(): Set<ClassId> = items.own.byHolder.keys + items.own.missedMarkers
 
     override fun getTopLevelCallableIds(): Set<CallableId> = items.hints.keys
 
     override fun generateTopLevelClassLikeDeclaration(classId: ClassId): FirClassLikeSymbol<*>? {
+        if (classId in items.own.missedMarkers) return createTopLevelClass(classId, CollectorPluginKey, ClassKind.INTERFACE).symbol
         if (classId !in items.own.byHolder) return null
         return createTopLevelClass(classId, CollectorPluginKey, ClassKind.OBJECT).symbol
     }
@@ -107,8 +106,7 @@ class CollectorHintGenerator(session: FirSession) : FirDeclarationGenerationExte
     private fun annotationsFunction(owner: FirClassSymbol<*>, item: ItemDef, x: ClassId): FirNamedFunctionSymbol {
         val type = StandardClassIds.List.constructClassLikeType(arrayOf(x.constructClassLikeType()))
         val function = createMemberFunction(owner, CollectorPluginKey, CollectorNames.annotationsFunction(x), type)
-        val copies = item.declaration.annotations
-            .filter { it.annotatesDeclaration() && it.annotationTypeRef.coneTypeOrNull?.classId == x }
+        val copies = annotationsOfType(session, item.declaration.annotations.filter { it.annotatesDeclaration() }, x)
             .map { buildAnnotationCopy(it) { useSiteTarget = null } }
         function.replaceAnnotations(copies)
         return function.symbol

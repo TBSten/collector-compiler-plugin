@@ -23,6 +23,8 @@ internal object CollectorNames {
     const val HOLDER_PREFIX = "Item_"
     const val AS_PREFIX = "as_"
     const val ANNOTATIONS_PREFIX = "annotations_"
+    const val MISSED_PREFIX = "collectorMissed_"
+    const val MISSED_MARKER_PREFIX = "Missed_"
     private const val ITEM_FILE_PREFIX = "itemHint_"
 
     /**
@@ -40,10 +42,11 @@ internal object CollectorNames {
     /** The hint format recorded in a hint's deprecation message, or null when there is none. */
     fun hintFormatOf(message: String): Int? = HINT_FORMAT_PATTERN.find(message)?.groupValues?.get(1)?.toIntOrNull()
 
-    /** Parameter names of the hints: the annotation X, the Collector C and the item's holder. */
+    /** Parameter names of the hints: the annotation X, the Collector C, the item's holder and the missed marker. */
     val ANNOTATION_PARAMETER = Name.identifier("a")
     val COLLECTOR_PARAMETER = Name.identifier("c")
     val HOLDER_PARAMETER = Name.identifier("i")
+    val MARKER_PARAMETER = Name.identifier("m")
 
     /** The name of the `collectorFor_` hints for the annotation [annotationFqName]. */
     fun collectorForHintName(annotationFqName: String): Name =
@@ -59,6 +62,20 @@ internal object CollectorNames {
     fun collectorTagHint(tag: String): CallableId =
         CallableId(HINTS_PACKAGE, Name.identifier(COLLECTOR_TAG_PREFIX + HintNameEncoding.encode(tag)))
 
+    /**
+     * `collectorMissed_<enc(X)>(a: X, m: Missed_<enc(fqName)>)`: a module has declarations annotated with X but saw no
+     * Collector for X when it was compiled, so they are not items (spec P11). fqName is the first such declaration; the
+     * marker interface makes the signature unique per module.
+     */
+    fun missedHint(annotation: ClassId): CallableId =
+        CallableId(HINTS_PACKAGE, Name.identifier(MISSED_PREFIX + HintNameEncoding.encode(annotation.asFqNameString())))
+
+    fun missedMarker(declarationFqName: String): ClassId =
+        ClassId(HINTS_PACKAGE, Name.identifier(MISSED_MARKER_PREFIX + HintNameEncoding.encode(declarationFqName)))
+
+    fun decodeMissedMarker(marker: ClassId): String =
+        marker.shortClassName.asString().removePrefix(MISSED_MARKER_PREFIX).let { HintNameEncoding.decode(it) ?: it }
+
     fun itemHint(annotation: ClassId): CallableId =
         CallableId(HINTS_PACKAGE, Name.identifier(ITEM_PREFIX + HintNameEncoding.encode(annotation.asFqNameString())))
 
@@ -70,6 +87,9 @@ internal object CollectorNames {
 
     /** The file of the `collectorKey_` hints of [collector]. */
     fun collectorKeyHintFile(collector: ClassId): String = collectorKeyHint(collector).callableName.asString()
+
+    /** The file of the `collectorMissed_` hint whose marker is named after [declarationFqName]. */
+    fun missedHintFile(declarationFqName: String): String = MISSED_PREFIX + HintNameEncoding.encode(declarationFqName)
 
     /** The file of the `item_` hints of the item with the holder [holder]; it follows the holder's name. */
     fun itemHintFile(holder: ClassId): String = ITEM_FILE_PREFIX + holder.shortClassName.asString().removePrefix(HOLDER_PREFIX)

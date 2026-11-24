@@ -2,6 +2,7 @@ package me.tbsten.collector.compiler.ir
 
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.backend.common.lower.DeclarationIrBuilder
+import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.ir.IrElement
 import org.jetbrains.kotlin.ir.IrElementBase
 import org.jetbrains.kotlin.ir.UNDEFINED_OFFSET
@@ -11,7 +12,10 @@ import org.jetbrains.kotlin.ir.builders.irReturn
 import org.jetbrains.kotlin.ir.builders.irVararg
 import org.jetbrains.kotlin.ir.declarations.IrDeclaration
 import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
+import org.jetbrains.kotlin.ir.expressions.IrConstructorCall
+import org.jetbrains.kotlin.ir.symbols.IrClassSymbol
 import org.jetbrains.kotlin.ir.types.IrSimpleType
+import org.jetbrains.kotlin.ir.types.classFqName
 import org.jetbrains.kotlin.ir.types.classOrNull
 import org.jetbrains.kotlin.ir.types.typeOrFail
 import org.jetbrains.kotlin.ir.util.deepCopyWithSymbols
@@ -23,11 +27,12 @@ import org.jetbrains.kotlin.ir.visitors.acceptVoid
 internal class ItemAnnotations(private val context: IrPluginContext, private val symbols: CollectorSymbols) {
     /**
      * Gives the holder member [holderFn], declared as `annotations_<X>(): List<X>`, the body `return listOf(X(…), …)`:
-     * copies of the X annotations on [target], in source order.
+     * copies of the X annotations on [target], in source order, with meta-annotations expanded in place.
      */
     fun fill(holderFn: IrSimpleFunction, target: IrDeclaration) {
         val elementType = (holderFn.returnType as IrSimpleType).arguments.single().typeOrFail
-        val annotations = target.annotations.filter { it.type.classOrNull == elementType.classOrNull }
+        val x = elementType.classOrNull ?: error("Collector: ${holderFn.name} does not return a list of annotations")
+        val annotations = annotationsOfType(target.annotations, x, emptySet())
         holderFn.body = DeclarationIrBuilder(context, holderFn.symbol).irBlockBody {
             +irReturn(
                 irCall(symbols.listOf, holderFn.returnType, typeArguments = listOf(elementType)).apply {
@@ -36,6 +41,16 @@ internal class ItemAnnotations(private val context: IrPluginContext, private val
             )
         }
     }
+
+    /** The [x] annotations among [annotations], with meta-annotations (annotation classes carrying X) expanded in place. */
+    private fun annotationsOfType(annotations: List<IrConstructorCall>, x: IrClassSymbol, path: Set<String>): List<IrConstructorCall> =
+        annotations.flatMap { annotation ->
+            if (annotation.type.classOrNull == x) return@flatMap listOf(annotation)
+            val fq = annotation.type.classFqName?.asString() ?: return@flatMap emptyList()
+            if (fq in path || fq.startsWith("kotlin")) return@flatMap emptyList()
+            val meta = annotation.type.classOrNull?.owner?.takeIf { it.kind == ClassKind.ANNOTATION_CLASS } ?: return@flatMap emptyList()
+            annotationsOfType(meta.annotations, x, path + fq)
+        }
 
     /**
      * The copied annotation keeps offsets of the item's file, which mean nothing in the holder's file (the JVM

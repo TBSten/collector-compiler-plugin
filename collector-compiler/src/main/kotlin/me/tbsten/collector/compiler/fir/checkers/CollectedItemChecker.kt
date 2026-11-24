@@ -2,10 +2,10 @@ package me.tbsten.collector.compiler.fir.checkers
 
 import me.tbsten.collector.compiler.CollectorNames
 import me.tbsten.collector.compiler.fir.CollectorErrors
-import me.tbsten.collector.compiler.fir.annotatesDeclaration
 import me.tbsten.collector.compiler.fir.collectorIndex
 import me.tbsten.collector.compiler.fir.conversionProblem
 import me.tbsten.collector.compiler.fir.describeHint
+import me.tbsten.collector.compiler.fir.expandedAnnotationIds
 import me.tbsten.collector.compiler.fir.itemName
 import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
@@ -22,7 +22,6 @@ import org.jetbrains.kotlin.fir.declarations.FirProperty
 import org.jetbrains.kotlin.fir.declarations.FirRegularClass
 import org.jetbrains.kotlin.fir.declarations.FirTypeAlias
 import org.jetbrains.kotlin.fir.declarations.FirValueParameter
-import org.jetbrains.kotlin.fir.declarations.toAnnotationClassId
 import org.jetbrains.kotlin.fir.declarations.utils.isInner
 import org.jetbrains.kotlin.fir.declarations.utils.isLocal
 import org.jetbrains.kotlin.fir.resolve.providers.firProvider
@@ -40,8 +39,9 @@ internal object CollectedItemChecker : FirBasicDeclarationChecker(MppCheckerKind
     override fun check(declaration: FirDeclaration) {
         val session = context.session
         val index = session.collectorIndex
-        val allAnnotations = declaration.annotations.filter { it.annotatesDeclaration() }
-            .mapNotNullTo(mutableSetOf()) { it.toAnnotationClassId(session) }
+        // annotation classes carrying X are meta-annotations (multipreviews), not items
+        if (declaration is FirRegularClass && declaration.classKind == ClassKind.ANNOTATION_CLASS) return
+        val allAnnotations = expandedAnnotationIds(session, declaration)
         val source = declaration.source ?: return
         // a Collector for one of these annotations was built by another plugin version, so it is not read
         val hintNames = allAnnotations.mapTo(mutableSetOf()) { CollectorNames.collectorForHintName(it.asFqNameString()) }
@@ -109,7 +109,7 @@ internal object CollectedItemChecker : FirBasicDeclarationChecker(MppCheckerKind
             is FirFileSymbol -> context.session.firProvider.getFirFilesByPackage(owner.fir.packageDirective.packageFqName).flatMap { it.declarations }
             else -> return null
         }.filter { it.itemName() == name }
-        fun FirDeclaration.collected() = annotations.any { it.annotatesDeclaration() && it.toAnnotationClassId(context.session) in targets }
+        fun FirDeclaration.collected() = expandedAnnotationIds(context.session, this).any { it in targets }
         val expectCollected = siblings.any { it.isExpect && it.collected() }
         val clashes = siblings.count { !it.isExpect && (it.collected() || (expectCollected && it.isActual)) } +
             if (expectCollected && siblings.none { it.isActual }) 1 else 0

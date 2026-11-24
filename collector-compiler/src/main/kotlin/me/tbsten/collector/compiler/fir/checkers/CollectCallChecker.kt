@@ -22,6 +22,7 @@ import org.jetbrains.kotlin.fir.types.isSubtypeOf
  * - the receiver is a direct reference to a `@CollectorFor` object, or the implicit receiver of `with(XCollector) { … }`;
  * - a tag is a compile-time constant, and every Collector with it collects a subtype of the requested T;
  * - every hint the result depends on was written with this plugin's hint format;
+ * - no module upstream has declarations it could not turn into items (a warning, spec P11);
  * - for `collectWithAnnotation` / `collectAsMap`, every collected annotation is an A.
  */
 internal object CollectCallChecker : FirFunctionCallChecker(MppCheckerKind.Common) {
@@ -51,9 +52,14 @@ internal object CollectCallChecker : FirFunctionCallChecker(MppCheckerKind.Commo
             reporter.reportOn(source, CollectorErrors.HINT_FORMAT_MISMATCH, stale.joinToString { it.describeHint() })
             return
         }
+        val xs = call.collectors.flatMap { session.collectorHints.annotationsOf(it.classId) }.distinct()
+        val missed = xs.mapNotNull { x ->
+            val examples = session.collectorHints.missedDeclarationsOf(x)
+            if (examples.isEmpty()) null else "@${x.shortClassName} (${examples.joinToString()})"
+        }
+        if (missed.isNotEmpty()) reporter.reportOn(source, CollectorErrors.COLLECT_MISSED_ITEMS, missed.joinToString("; "))
         if (call.function.kind.withAnnotations) {
             val a = expression.typeArgument(0) ?: return
-            val xs = call.collectors.flatMap { session.collectorHints.annotationsOf(it.classId) }.distinct()
             val mismatched = xs.filter { x -> !x.constructClassLikeType().isSubtypeOf(a, session) }
             if (mismatched.isNotEmpty()) {
                 reporter.reportOn(source, CollectorErrors.COLLECT_ANNOTATION_TYPE_MISMATCH, mismatched.joinToString { it.asFqNameString() })

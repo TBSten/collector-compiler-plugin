@@ -60,6 +60,17 @@ class CollectorHints(session: FirSession) : FirExtensionSessionComponent(session
     }
 
     /**
+     * Declarations annotated with [annotation] in modules that saw no Collector for it (spec P11), read from the
+     * `collectorMissed_` hints: one example per module, sorted.
+     */
+    internal fun missedDeclarationsOf(annotation: ClassId): List<String> =
+        hints(CollectorNames.missedHint(annotation))
+            .filter { it.hasCurrentHintFormat() }
+            .mapNotNull { it.parameterClassId(1) }
+            .map { CollectorNames.decodeMissedMarker(it) }
+            .distinct().sorted()
+
+    /**
      * The items the call site sees for [collectors], sorted by FQN, with the same rules as the IR rewrite: one per
      * holder, and only holders that convert for the Collector.
      */

@@ -19,3 +19,11 @@ enum class Size { S, M, L }
 @property:Setting val propertyTarget = "property"
 @get:Setting val getterTarget = "getter"
 @field:Setting val fieldTarget = "field"
+
+/** A meta-annotation of this module, nesting one from a dependency. */
+@defs.DefsLabel
+@defs.Labeled("own")
+annotation class OwnLabel
+
+@defs.DefsLabel @defs.Labeled("direct") val labeledByDependency = "dependency"
+@OwnLabel val labeledByOwn = "own"
