@@ -29,3 +29,7 @@ annotation class OwnLabel
 @OwnLabel val labeledByOwn = "own"
 
 @defs.LongName val aNameThatIsLongEnoughToNeedShorteningAndStillGoesOnAndStillGoesOnAndStillGoesOnAndStillGoesOnAndStillGoesOnAndStillGoesOnAndStillGoesOnAndStillGoesOnAndStillGoesOnAndStillGoesOnAndStillGoesOnAndStillGoesOn = "long"
+
+private class Secret
+
+@defs.Weighted("far", weight = 2, kind = Secret::class) val weightedFar = "far"

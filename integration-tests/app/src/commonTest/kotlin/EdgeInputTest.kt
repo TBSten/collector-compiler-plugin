@@ -7,6 +7,8 @@ import defs.LongNameCollector
 import defs.SettingCollector
 import defs.Tinted
 import defs.TwiceCollector
+import defs.Weighted
+import defs.WeightedCollector
 import edge.Color
 import edge.Size
 import me.tbsten.collector.collectAsList
@@ -67,5 +69,14 @@ class EdgeInputTest {
     @Test
     fun longNamesAreCollected() {
         assertEquals(listOf("long"), LongNameCollector.collectAsList())
+    }
+
+    /** Default values and a private class among the arguments of a collected annotation. */
+    @Test
+    fun annotationsAreBuiltWhereTheyWereWritten() {
+        assertEquals(
+            listOf("near near 1 Any", "far far 2 Secret"),
+            WeightedCollector.collectWithAnnotation<Weighted, String>().map { (a, value) -> "$value ${a.name} ${a.weight} ${a.kind.simpleName}" },
+        )
     }
 }

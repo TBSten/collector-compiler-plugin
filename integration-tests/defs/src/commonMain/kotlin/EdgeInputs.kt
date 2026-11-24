@@ -55,3 +55,12 @@ annotation class LongName
 
 @CollectorFor<LongName>()
 object LongNameCollector : Collector<String>
+
+// an annotation with default values, on an item of its own module and with a private class as an argument: the
+// annotation is built where it was written
+annotation class Weighted(val name: String, val weight: Int = 1, val kind: KClass<*> = Any::class)
+
+@CollectorFor<Weighted>()
+object WeightedCollector : Collector<String>
+
+@Weighted("near") val weightedNear = "near"
