@@ -10,3 +10,6 @@ val markedDownstreamOnJvm = "items1 jvm"
 // the class the alias defs.Marker stands for
 @defs.JvmMarker
 val markedByTheJvmName = "items1 jvm name"
+
+@edge.jvm.JavaLabel("full name")
+val labeledByFullName = "full name"

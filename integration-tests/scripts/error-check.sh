@@ -31,6 +31,6 @@ check() {
     fi
 }
 
-check "errors" errors/src/commonMain/kotlin true false
+check "errors" errors/src true false
 check "warnings" errors/warnings warnings true
 exit $FAILED
