@@ -65,6 +65,18 @@ object XCollector : Collector<T>  // T: 取り出すときの型
   - expect に付けた場合は actual の 1 件として数える。
   - 同じ宣言に同じアノテーションを 2 回付けても 1 件。`collectWithAnnotation` ではアノテーションごとに 1 件ずつになる。
 
+### メタアノテーション（マルチプレビュー）
+
+X を付けたアノテーションクラス M は、使われた場所で X として数える（Compose のマルチプレビューと同じ考え方。入れ子も可）。M 自体はアイテムにならない。
+
+```kotlin
+@Preview(name = "light") @Preview(name = "dark")
+annotation class ThemePreviews
+
+@ThemePreviews @Composable fun ButtonPreview() { … }   // PreviewCollector に 1 件
+// collectWithAnnotation では light と dark の 2 件
+```
+
 ### 3. 取り出す
 
 ```kotlin
