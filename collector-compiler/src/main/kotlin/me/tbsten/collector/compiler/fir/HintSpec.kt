@@ -20,7 +20,8 @@ internal class HintSpec(
  *   find the Collectors of an annotation, and the annotations of a Collector (type arguments of annotations are not
  *   kept in class files);
  * - `collectorTag_<tag>(c: C)` for each own Collector C declared with a tag: calls by tag find the Collectors;
- * - `item_<X>(i: Item_…)` for each own item and each collected annotation X on it.
+ * - `item_<X>(i: Item_…)` for each own item and each collected annotation X on it;
+ * - `collectorMissed_<X>(a: X, m: Missed_…)` for each annotation X this module uses without seeing a Collector for it.
  */
 internal fun hintSpecs(collectors: List<CollectorDef>, items: OwnItems): Map<CallableId, List<HintSpec>> = buildList {
     for (c in collectors) {
@@ -57,5 +58,13 @@ internal fun hintSpecs(collectors: List<CollectorDef>, items: OwnItems): Map<Cal
                 ),
             )
         }
+    }
+    for ((x, first) in items.missed) {
+        add(
+            HintSpec(
+                CollectorNames.missedHint(x), CollectorNames.missedHintFile(first),
+                listOf(CollectorNames.ANNOTATION_PARAMETER to x, CollectorNames.MARKER_PARAMETER to CollectorNames.missedMarker(first)),
+            ),
+        )
     }
 }.groupBy { it.callableId }

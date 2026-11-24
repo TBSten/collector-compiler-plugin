@@ -34,9 +34,19 @@ internal data class ItemDef(
 )
 
 /** The result of [ItemScanner.scan]. */
-internal class OwnItems(val items: List<ItemDef>) {
+internal class OwnItems(
+    val items: List<ItemDef>,
+    /**
+     * spec P11: annotation X -> the first (by FQN) declaration of this module annotated with it although no Collector
+     * for X is visible. That declaration names the marker of `collectorMissed_<X>`.
+     */
+    val missed: Map<ClassId, String>,
+) {
     /** Holder object -> the item it stands for. */
     val byHolder: Map<ClassId, ItemDef> = items.associateBy { it.holder }
+
+    /** The marker interfaces of the `collectorMissed_` hints. */
+    val missedMarkers: Set<ClassId> = missed.values.mapTo(mutableSetOf()) { CollectorNames.missedMarker(it) }
 }
 
 /** The name under which [this] can be an item, or null for declarations that are never items. */
@@ -62,11 +72,12 @@ internal class ItemScanner(private val session: FirSession) {
     fun scan(targets: Set<ClassId>): OwnItems {
         val provider = session.firProvider
         val found = mutableListOf<ItemDef>()
+        val missed = mutableMapOf<ClassId, MutableList<String>>()
         for (pkg in provider.symbolProvider.symbolNamesProvider.getPackageNames().orEmpty()) {
             for (file in provider.getFirFilesByPackage(FqName(pkg))) {
                 val candidates = mutableSetOf<String>()
                 for (decl in file.declarations) {
-                    collectItems(file, decl, file.packageDirective.packageFqName.asString(), containerIsObject = true, targets, found, candidates)
+                    collectItems(file, decl, file.packageDirective.packageFqName.asString(), containerIsObject = true, targets, found, candidates, missed)
                 }
                 // A Collector for any of these annotations may appear upstream later: make IC recompile this file then.
                 val tracker = session.lookupTracker ?: continue
@@ -85,18 +96,25 @@ internal class ItemScanner(private val session: FirSession) {
             group.mapIndexed { i, item -> if (i == 0) item else item.copy(holder = CollectorNames.holder(item.fqName, i)) }
         }
         debugLog { "own items: ${result.map { it.fqName + "@" + it.annotations + " -> " + it.holder.shortClassName }}" }
-        return OwnItems(result)
+        return OwnItems(result, missed.mapValues { (_, fqNames) -> fqNames.min() })
     }
 
     private fun collectItems(
         file: FirFile, decl: FirDeclaration, prefix: String, containerIsObject: Boolean, targets: Set<ClassId>,
-        out: MutableList<ItemDef>, candidates: MutableSet<String>,
+        out: MutableList<ItemDef>, candidates: MutableSet<String>, missed: MutableMap<ClassId, MutableList<String>>,
     ) {
         val name = decl.itemName() ?: return
         val fq = if (prefix.isEmpty()) name else "$prefix.$name"
         // An annotation class annotated with X is a meta-annotation (like a Compose multipreview), not an item.
         if (decl is FirRegularClass && decl.classKind == ClassKind.ANNOTATION_CLASS) return
+        // Members of a class need an instance and inner classes an outer instance: the checker reports those.
+        val placeable = when (decl) {
+            is FirRegularClass -> !decl.isInner
+            is FirEnumEntry -> true
+            else -> containerIsObject
+        }
         val annotations = mutableSetOf<ClassId>()
+        val uncollected = mutableSetOf<ClassId>()
         for (ann in decl.annotations) {
             if (!ann.annotatesDeclaration()) continue
             val names = annotationCandidates(ann, file)
@@ -110,17 +128,17 @@ internal class ItemScanner(private val session: FirSession) {
             val reached = names.flatMapTo(mutableSetOf()) { metaAnnotations(it, mutableSetOf()) }
             candidates += reached
             targets.filterTo(annotations) { it.asFqNameString() in reached }
+            if (placeable) {
+                annotationClassOf(names)?.let { uncollected += it }
+                reached.mapNotNullTo(uncollected) { annotationClassOf(setOf(it)) }
+            }
         }
-        // Members of a class need an instance and inner classes an outer instance: the checker reports those.
-        val placeable = when (decl) {
-            is FirRegularClass -> !decl.isInner
-            is FirEnumEntry -> true
-            else -> containerIsObject
-        }
+        // spec P11: remember annotations without a visible Collector, so that call sites downstream can warn
+        uncollected.filter { it !in targets && !neverCollected(it) }.forEach { missed.getOrPut(it) { mutableListOf() } += fq }
         if (annotations.isNotEmpty() && placeable) out += ItemDef(fq, annotations, decl)
         if (decl is FirRegularClass && !decl.isInner) {
             for (member in decl.declarations) {
-                collectItems(file, member, fq, decl.classKind == ClassKind.OBJECT, targets, out, candidates)
+                collectItems(file, member, fq, decl.classKind == ClassKind.OBJECT, targets, out, candidates, missed)
             }
         }
     }
@@ -154,6 +172,20 @@ internal class ItemScanner(private val session: FirSession) {
             }
         }
         return reached
+    }
+
+    /** The annotation class one of the FQN guesses of [annotationCandidates] names, trying them in order. */
+    private fun annotationClassOf(names: Collection<String>): ClassId? =
+        names.asSequence().flatMap { classIdCandidates(it) }.firstOrNull { id ->
+            (session.firProvider.getFirClassifierByFqName(id) as? FirRegularClass)?.classKind == ClassKind.ANNOTATION_CLASS ||
+                (session.dependenciesSymbolProvider.getClassLikeSymbolByClassId(id) as? FirRegularClassSymbol)?.classKind ==
+                ClassKind.ANNOTATION_CLASS
+        }
+
+    /** Annotations from these packages are never what a Collector collects, so they are not recorded as missed. */
+    private fun neverCollected(annotation: ClassId): Boolean {
+        val pkg = annotation.packageFqName.asString()
+        return NEVER_COLLECTED_PACKAGES.any { pkg == it || pkg.startsWith("$it.") }
     }
 
     /** The class ids an FQN may stand for: top level, or nested in a class one level up. */
@@ -191,3 +223,8 @@ internal class ItemScanner(private val session: FirSession) {
         return candidates
     }
 }
+
+/** Packages whose annotations are never collected (and appear on almost every declaration), see neverCollected(). */
+private val NEVER_COLLECTED_PACKAGES = listOf(
+    "kotlin", "java", "javax", "org.jetbrains.annotations", "androidx.compose.runtime", "me.tbsten.collector",
+)
