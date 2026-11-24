@@ -38,6 +38,11 @@ private object PrivateHost {
     @Conv val inner: Shape = object : Shape { override val id = "private-host" }
 }
 
+// a second private object with a member of the same name
+private object OtherPrivateHost {
+    @Conv val inner: Shape = object : Shape { override val id = "other-private-host" }
+}
+
 object Host {
     @Conv private val secret: Shape = object : Shape { override val id = "secret" }
 }

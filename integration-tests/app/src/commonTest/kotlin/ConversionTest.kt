@@ -14,7 +14,7 @@ import kotlin.test.assertEquals
 class ConversionTest {
     @Test
     fun instances() = assertEquals(
-        listOf("circle", "Dup", "hidden", "secret", "private-host", "triangle", "square", "companion", "default", "dup"),
+        listOf("circle", "Dup", "hidden", "secret", "other-private-host", "private-host", "triangle", "square", "companion", "default", "dup"),
         ShapeCollector.collectAsList().map { it.id },
     )
 
