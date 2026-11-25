@@ -1,5 +1,6 @@
 package me.tbsten.collector.compiler.fir
 
+import me.tbsten.collector.compiler.CollectorNames
 import me.tbsten.collector.compiler.ItemIdentity
 import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.caches.firCachesFactory
@@ -8,6 +9,7 @@ import org.jetbrains.kotlin.fir.declarations.FirMemberDeclaration
 import org.jetbrains.kotlin.fir.extensions.FirExtensionSessionComponent
 import org.jetbrains.kotlin.fir.moduleData
 import org.jetbrains.kotlin.name.CallableId
+import org.jetbrains.kotlin.name.ClassId
 
 /**
  * The items of this module and the hints it declares: what [CollectorHintGenerator] generates.
@@ -38,8 +40,18 @@ class CollectorItemIndex(session: FirSession, private val moduleName: String) : 
      */
     internal fun expectItem(kind: ItemIdentity.Kind, fqName: String): ItemDef? = expectItems[kind to fqName]
 
+    /**
+     * The Collectors of this module and their annotations that only their file can name -> the marker interface
+     * that stands for each in the parameters of hints (see [CollectorNames.privateMarker]).
+     */
+    internal val privateMarkers: Map<ClassId, ClassId> by session.firCachesFactory.createLazyValue {
+        session.collectorIndex.ownCollectors.flatMap { listOf(it.collector, it.annotation) }.distinct()
+            .filter { session.isFilePrivate(it) }
+            .associateWith { CollectorNames.privateMarker(it, moduleName) }
+    }
+
     internal val hints: Map<CallableId, List<HintSpec>> by session.firCachesFactory.createLazyValue {
-        hintSpecs(session.collectorIndex.ownCollectors, own)
+        hintSpecs(session.collectorIndex.ownCollectors, own, privateMarkers)
     }
 }
 

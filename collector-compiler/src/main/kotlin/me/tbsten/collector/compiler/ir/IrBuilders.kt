@@ -54,6 +54,13 @@ private fun IrDeclaration.hintFields(): Map<String, String> {
 internal fun IrClass.itemIdentity(): ItemIdentity? = ItemIdentity.fromFields(hintFields())
 
 /**
+ * The Collector of a `collectorTag_` hint: the class id its message records, or else the type of its parameter (a
+ * marker stands there for a private Collector).
+ */
+internal fun IrSimpleFunction.hintCollector(): ClassId? =
+    hintFields()[HintMessage.COLLECTOR]?.let { ClassId.fromString(it) } ?: parameters.firstOrNull()?.type?.classOrNull?.owner?.classId
+
+/**
  * X of a `collectorKey_` hint as the module of the Collector knows it, which the hints of the items are named after:
  * the class id its message records, or else the type of its parameter (which is the `actual` class of an `expect`
  * annotation, and so not always X).

@@ -28,8 +28,8 @@ import org.jetbrains.kotlin.name.SpecialNames
 import org.jetbrains.kotlin.name.StandardClassIds
 
 /**
- * Declares the hints, the holder objects and the missed markers of this module in `collector.hints`. Only signatures are generated here;
- * the bodies are filled in IR.
+ * Declares the hints, the holder objects and the marker interfaces of this module in `collector.hints`. Only
+ * signatures are generated here; the bodies are filled in IR.
  *
  * What to generate comes from the session components [CollectorIndex] and [CollectorItemIndex].
  */
@@ -40,16 +40,18 @@ class CollectorHintGenerator(session: FirSession) : FirDeclarationGenerationExte
 
     override fun hasPackage(packageFqName: FqName): Boolean = packageFqName == CollectorNames.HINTS_PACKAGE
 
-    override fun getTopLevelClassIds(): Set<ClassId> = items.own.byHolder.keys + items.own.missedMarkers.keys
+    override fun getTopLevelClassIds(): Set<ClassId> =
+        items.own.byHolder.keys + items.own.missedMarkers.keys + items.privateMarkers.values
 
     override fun getTopLevelCallableIds(): Set<CallableId> = items.hints.keys
 
-    /** Holders and missed markers are hidden from user code; their message says what they stand for. */
+    /** Holders and markers are hidden from user code; their message says what they stand for. */
     override fun generateTopLevelClassLikeDeclaration(classId: ClassId): FirClassLikeSymbol<*>? {
         val (kind, fields) = items.own.missedMarkers[classId]?.let { ClassKind.INTERFACE to listOf(HintMessage.MISSED to it) }
             ?: items.own.byHolder[classId]?.let { item ->
                 ClassKind.OBJECT to item.identity.toFields() + visibleCollectors(item).map { HintMessage.COLLECTOR to it.collector.asString() }
             }
+            ?: classId.takeIf { it in items.privateMarkers.values }?.let { ClassKind.INTERFACE to emptyList() }
             ?: return null
         val cls = createTopLevelClass(classId, CollectorPluginKey, kind)
         cls.replaceAnnotations(listOf(hiddenMarker(HintMessage.of(fields))))

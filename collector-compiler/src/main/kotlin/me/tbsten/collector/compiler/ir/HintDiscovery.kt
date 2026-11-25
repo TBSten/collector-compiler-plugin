@@ -3,11 +3,9 @@ package me.tbsten.collector.compiler.ir
 import me.tbsten.collector.compiler.CollectorNames
 import me.tbsten.collector.compiler.ItemIdentity
 import org.jetbrains.kotlin.backend.common.extensions.DeclarationFinder
-import org.jetbrains.kotlin.ir.declarations.IrClass
 import org.jetbrains.kotlin.ir.symbols.IrClassSymbol
 import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
 import org.jetbrains.kotlin.ir.types.classOrNull
-import org.jetbrains.kotlin.ir.util.classId
 import org.jetbrains.kotlin.ir.util.functions
 import org.jetbrains.kotlin.name.ClassId
 
@@ -31,8 +29,7 @@ internal class HintDiscovery(private val finder: DeclarationFinder) {
     private val entriesByCollector = mutableMapOf<ClassId, List<CollectedEntry>>()
 
     /** The items of [collector], sorted by declaration FQN. Holders without `as_<C>()` are left out. */
-    fun entriesFor(collector: IrClass): List<CollectedEntry> =
-        entriesByCollector.getOrPut(collector.classId!!) { findEntries(collector.classId!!) }
+    fun entriesFor(collector: ClassId): List<CollectedEntry> = entriesByCollector.getOrPut(collector) { findEntries(collector) }
 
     private fun findEntries(collector: ClassId): List<CollectedEntry> {
         // collectorKey_<C>(a: X): the annotations C collects
@@ -55,9 +52,9 @@ internal class HintDiscovery(private val finder: DeclarationFinder) {
     /** The items of every Collector tagged [tag], sorted by FQN; an item reached through several of them appears once. */
     fun entriesForTag(tag: String): List<CollectedEntry> =
         finder.findFunctions(CollectorNames.collectorTagHint(tag))
-            .mapNotNull { it.owner.parameters.firstOrNull()?.type?.classOrNull?.owner }
-            .distinctBy { it.classId }
-            .sortedBy { it.classId!!.asFqNameString() }
+            .mapNotNull { it.owner.hintCollector() }
+            .distinct()
+            .sortedBy { it.asFqNameString() }
             .flatMap { entriesFor(it) }
             .distinctBy { it.holder }
             .sortedBy { it.identity }

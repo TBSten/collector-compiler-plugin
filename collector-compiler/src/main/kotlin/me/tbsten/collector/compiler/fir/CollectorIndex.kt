@@ -98,7 +98,7 @@ class CollectorIndex(session: FirSession) : FirExtensionSessionComponent(session
         classpathCollectorHints.filter { it.hasCurrentHintFormat() }
             .mapNotNull { fn ->
                 val x = fn.hintAnnotation() ?: return@mapNotNull null
-                val cId = fn.valueParameterSymbols.getOrNull(1)?.resolvedReturnType?.classId ?: return@mapNotNull null
+                val cId = fn.hintCollector(parameter = 1) ?: return@mapNotNull null
                 // not toRegularClassSymbol(): that goes through the generated-declarations provider and recurses
                 val c = provider.getClassLikeSymbolByClassId(cId) as? FirRegularClassSymbol ?: return@mapNotNull null
                 CollectorDef(c.classId, x, c)

@@ -24,6 +24,7 @@ import org.jetbrains.kotlin.ir.types.IrType
 import org.jetbrains.kotlin.ir.types.classOrNull
 import org.jetbrains.kotlin.ir.types.typeOrFail
 import org.jetbrains.kotlin.ir.types.typeWith
+import org.jetbrains.kotlin.ir.util.classId
 import org.jetbrains.kotlin.ir.util.functions
 import org.jetbrains.kotlin.ir.util.isObject
 import org.jetbrains.kotlin.ir.util.primaryConstructor
@@ -52,7 +53,7 @@ internal class CollectCallTransformer(
             discovery.entriesForTag(tag)
         } else {
             // `XCollector.f()` or the implicit receiver of `with(XCollector) { f() }`: the object type decides
-            val collector = expression.arguments[0]?.type?.classOrNull?.owner?.takeIf { it.isObject }
+            val collector = expression.arguments[0]?.type?.classOrNull?.owner?.takeIf { it.isObject }?.classId
                 ?: error("Collector: the receiver of ${function.name}() must be a @CollectorFor object (checked on the FIR side)")
             discovery.entriesFor(collector)
         }

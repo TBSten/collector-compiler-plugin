@@ -10,7 +10,6 @@ import org.jetbrains.kotlin.fir.caches.getValue
 import org.jetbrains.kotlin.fir.expressions.FirAnnotation
 import org.jetbrains.kotlin.fir.extensions.FirExtensionSessionComponent
 import org.jetbrains.kotlin.fir.resolve.providers.symbolProvider
-import org.jetbrains.kotlin.fir.resolve.toRegularClassSymbol
 import org.jetbrains.kotlin.fir.scopes.getFunctions
 import org.jetbrains.kotlin.fir.scopes.impl.declaredMemberScope
 import org.jetbrains.kotlin.fir.symbols.impl.FirNamedFunctionSymbol
@@ -55,8 +54,9 @@ class CollectorHints(session: FirSession) : FirExtensionSessionComponent(session
     /** The Collectors declared with [tag], read from the `collectorTag_` hints. */
     internal fun collectorsWithTag(tag: String): List<FirRegularClassSymbol> =
         hints(CollectorNames.collectorTagHint(tag))
-            .mapNotNull { it.valueParameterSymbols.firstOrNull()?.resolvedReturnType?.toRegularClassSymbol(session) }
-            .distinctBy { it.classId }
+            .mapNotNull { it.hintCollector(parameter = 0) }
+            .distinct()
+            .mapNotNull { session.symbolProvider.getClassLikeSymbolByClassId(it) as? FirRegularClassSymbol }
 
     /** Every hint the result of a call depends on: its tag hints, the Collectors' key hints and their item hints. */
     internal fun hintsOf(tag: String?, collectors: List<ClassId>): List<FirNamedFunctionSymbol> = buildList {

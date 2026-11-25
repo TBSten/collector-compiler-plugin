@@ -67,6 +67,14 @@ internal fun FirCallableSymbol<*>.hintAnnotation(): ClassId? =
     hintMessage()?.let { HintMessage.fields(it)[HintMessage.ANNOTATION] }?.let { ClassId.fromString(it) }
         ?: (this as? FirNamedFunctionSymbol)?.valueParameterSymbols?.firstOrNull()?.resolvedReturnType?.classId
 
+/**
+ * The Collector of a `collectorFor_` or `collectorTag_` hint, whose parameter [parameter] is `c`: the class id its
+ * message records, or else the type of that parameter (a marker stands there for a private Collector).
+ */
+internal fun FirCallableSymbol<*>.hintCollector(parameter: Int): ClassId? =
+    hintMessage()?.let { HintMessage.fields(it)[HintMessage.COLLECTOR] }?.let { ClassId.fromString(it) }
+        ?: (this as? FirNamedFunctionSymbol)?.valueParameterSymbols?.getOrNull(parameter)?.resolvedReturnType?.classId
+
 /** The Collectors that were visible where the item of the holder [this] is declared (see [HintMessage.COLLECTOR]). */
 internal fun FirClassLikeSymbol<*>.visibleCollectors(): Set<ClassId> =
     hintMessage()?.let { message -> HintMessage.values(message, HintMessage.COLLECTOR).mapTo(mutableSetOf()) { ClassId.fromString(it) } }.orEmpty()

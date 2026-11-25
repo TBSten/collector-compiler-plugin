@@ -174,7 +174,10 @@ internal class ItemScanner(private val session: FirSession, private val module: 
                 val targets = collectors.targetsOf(annotationClass)
                 annotations += targets
                 // spec P11: remember annotations without a visible Collector, so that call sites downstream can warn
-                if (targets.isEmpty() && placeable && !neverCollected(annotationClass) && resolver.isAnnotationClass(annotationClass)) {
+                if (targets.isEmpty() && placeable && !neverCollected(annotationClass) && resolver.isAnnotationClass(annotationClass) &&
+                    // only its own file can declare a Collector for a private annotation: none will appear downstream
+                    !session.isFilePrivate(annotationClass)
+                ) {
                     missed.getOrPut(annotationClass) { mutableListOf() } += identity.fqName
                 }
             }

@@ -25,6 +25,7 @@ internal object CollectorNames {
     const val ANNOTATIONS_PREFIX = "annotations_"
     const val MISSED_PREFIX = "collectorMissed_"
     const val MISSED_MARKER_PREFIX = "Missed_"
+    const val PRIVATE_MARKER_PREFIX = "Private_"
     private const val ITEM_FILE_PREFIX = "itemHint_"
 
     /**
@@ -87,6 +88,17 @@ internal object CollectorNames {
         ClassId(
             HINTS_PACKAGE,
             Name.identifier(MISSED_MARKER_PREFIX + classNamePart(encode(annotation) + MODULE_SEPARATOR + HintNameEncoding.encode(module))),
+        )
+
+    /**
+     * `Private_<enc(K)>_in_<enc(module)>`: the interface that stands for the private class K (a Collector or an
+     * annotation) in the parameters of hints. Hints are in files of their own, where K can not be named, and their
+     * parameter types are what tells the hints of two Collectors or two annotations apart.
+     */
+    fun privateMarker(privateClass: ClassId, module: String): ClassId =
+        ClassId(
+            HINTS_PACKAGE,
+            Name.identifier(PRIVATE_MARKER_PREFIX + classNamePart(encode(privateClass) + MODULE_SEPARATOR + HintNameEncoding.encode(module))),
         )
 
     fun itemHint(annotation: ClassId): CallableId =

@@ -12,13 +12,10 @@ import org.jetbrains.kotlin.fir.declarations.FirTypeAlias
 import org.jetbrains.kotlin.fir.declarations.utils.classId
 import org.jetbrains.kotlin.fir.declarations.utils.visibility
 import org.jetbrains.kotlin.fir.expressions.FirAnnotation
-import org.jetbrains.kotlin.fir.java.javaSymbolProvider
 import org.jetbrains.kotlin.fir.languageVersionSettings
-import org.jetbrains.kotlin.fir.resolve.providers.dependenciesSymbolProvider
 import org.jetbrains.kotlin.fir.resolve.providers.firProvider
 import org.jetbrains.kotlin.fir.scopes.defaultImportsProvider
 import org.jetbrains.kotlin.fir.scopes.impl.DefaultImportPriority
-import org.jetbrains.kotlin.fir.symbols.SymbolInternals
 import org.jetbrains.kotlin.fir.types.ConeClassLikeType
 import org.jetbrains.kotlin.fir.types.FirUserTypeRef
 import org.jetbrains.kotlin.fir.types.classId
@@ -48,7 +45,6 @@ import org.jetbrains.kotlin.name.Name
  * with what the compiler resolved in the end, so what this class gets wrong is a compile error and not an item that
  * is silently left out.
  */
-@OptIn(SymbolInternals::class)
 internal class AnnotationResolver(private val session: FirSession) {
     private val fileScopes = HashMap<FirFile, FileScope>()
     private val expanded = HashMap<ClassId, Result>()
@@ -142,15 +138,7 @@ internal class AnnotationResolver(private val session: FirSession) {
         return null
     }
 
-    /**
-     * The class or type alias [id]: of this module's sources first (an `actual` wins over its `expect`), Kotlin before
-     * Java, then of the dependencies.
-     */
-    private fun classLike(id: ClassId): FirClassLikeDeclaration? =
-        session.firProvider.getFirClassifierByFqName(id)
-            // the Java sources compiled with this module; there is no such provider outside the JVM
-            ?: session.javaSymbolProvider?.getClassLikeSymbolByClassId(id)?.fir
-            ?: session.dependenciesSymbolProvider.getClassLikeSymbolByClassId(id)?.fir
+    private fun classLike(id: ClassId): FirClassLikeDeclaration? = session.classLikeDeclaration(id)
 
     /** Whether [id] exists and code in [file] can name it. A private class of another file does not hide a class. */
     private fun visible(id: ClassId, file: FirFile): Boolean {
