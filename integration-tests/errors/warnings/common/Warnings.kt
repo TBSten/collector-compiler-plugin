@@ -53,3 +53,26 @@ annotation class Reflected
 
 @ThroughSourceOnly @ThroughSourceOnlyInThisModule val sourceOnly = "collected in this module"
 
+// X is built again, with its arguments, where a meta-annotation is used. A module that uses a public one refers to
+// what is internal here, which the compiler rejects when it verifies IR.
+annotation class LinkedTo(val to: kotlin.reflect.KClass<*>)
+
+@CollectorFor<LinkedTo>() object LinkedToCollector : Collector<Any>
+
+internal class InternalTarget
+
+@PublishedApi internal class PublishedTarget
+
+@LinkedTo(InternalTarget::class) annotation class LinkedToInternal // W: META_ANNOTATION_INTERNAL_ARGUMENT
+
+@LinkedTo(InternalTarget::class) internal annotation class InternallyLinkedToInternal // only used in this module
+
+@LinkedTo(PublishedTarget::class) annotation class LinkedToPublished // the verification lets @PublishedApi through
+
+internal annotation class InternalLink
+
+@CollectorFor<InternalLink>() internal object InternalLinkCollector : Collector<Any>
+
+@InternalLink annotation class ThroughInternalLink // W: META_ANNOTATION_INTERNAL_ARGUMENT
+
+@LinkedToInternal @InternallyLinkedToInternal @LinkedToPublished @ThroughInternalLink val linkedToInternal = "collected in this module"
