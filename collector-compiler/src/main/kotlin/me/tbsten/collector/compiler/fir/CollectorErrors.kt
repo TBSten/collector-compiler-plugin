@@ -88,11 +88,8 @@ object CollectorErrors : KtDiagnosticsContainer() {
     /** The same annotation X twice on one Collector (arg: X). */
     val COLLECTOR_FOR_DUPLICATE by warning1<KtElement, String>(AT_NAME)
 
-    /**
-     * A collected annotation on a declaration that can not be collected where it is: it is left out (arg: why). Only
-     * a warning, since the annotation need not be the project's own: `@Serializable` on a member is right.
-     */
-    val ITEM_NOT_ALLOWED_HERE by warning1<KtElement, String>(AT_NAME)
+    /** A collected annotation on a declaration that can not be collected (arg: why). */
+    val ITEM_NOT_ALLOWED_HERE by error1<KtElement, String>(AT_NAME)
 
     /** Two collected declarations with the same name in one file or one object (arg: the name). */
     val ITEM_NAME_CLASH by error1<KtElement, String>(AT_NAME)
@@ -187,7 +184,7 @@ object CollectorErrors : KtDiagnosticsContainer() {
                 CommonRenderers.STRING,
             )
             map.put(COLLECTOR_FOR_DUPLICATE, "@CollectorFor<{0}> is repeated on the same object.", CommonRenderers.STRING)
-            map.put(ITEM_NOT_ALLOWED_HERE, "This declaration is not collected: {0}.", CommonRenderers.STRING)
+            map.put(ITEM_NOT_ALLOWED_HERE, "This declaration can not be collected: {0}.", CommonRenderers.STRING)
             map.put(
                 ITEM_NAME_CLASH,
                 "Collected declarations of a file or of an object must have distinct names, but {0} is used more than once (overloads are not supported).",
