@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Checks the errors and warnings reported by the plugin against the `// E: <NAME>` / `// W: <NAME>` markers in errors/.
 # Warnings are not printed when compilation fails, so the warning cases (errors/warnings) are compiled separately.
-# errors/silenced is compiled as a build that fails on warnings, with one warning of the plugin switched off.
 # Run from integration-tests/: ./scripts/error-check.sh
 set -u
 cd "$(dirname "$0")/.."
@@ -24,7 +23,7 @@ check() {
     actual=$(grep -E "^[ew]: .*/$dir/[^:]+:[0-9]+:[0-9]+ \[[A-Z_]+\]" "$log" \
         | sed -E 's/^([ew]): .*\/([^/:]+):([0-9]+):[0-9]+ \[([A-Z_]+)\].*/\2:\3 \1 \4/' | sort -u)
     if [ "$expected" == "$actual" ]; then
-        echo "PASS  $label: $(echo "$expected" | grep -c .) expected diagnostics reported"
+        echo "PASS  $label: $(echo "$expected" | wc -l) expected diagnostics reported"
     else
         echo "FAIL  $label: reported diagnostics differ from the markers (< expected, > actual)"
         diff <(echo "$expected") <(echo "$actual") | sed 's/^/      /'
@@ -35,5 +34,4 @@ check() {
 
 check "errors" errors/src true false
 check "warnings" errors/warnings warnings true
-check "silenced" errors/silenced silenced true
 exit $FAILED

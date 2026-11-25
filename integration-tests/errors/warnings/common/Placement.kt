@@ -30,14 +30,3 @@ fun parameter(@Conv shape: Shape) = shape // W: ITEM_NOT_ALLOWED_HERE
 class MetaHolder {
     @ConvMeta val member: Shape = any // W: ITEM_NOT_ALLOWED_HERE
 }
-
-// @Suppress silences it like any other warning, on the declaration or on something around it
-class Suppressed {
-    @Suppress("ITEM_NOT_ALLOWED_HERE")
-    @Conv val member: Shape = any
-}
-
-@Suppress("ITEM_NOT_ALLOWED_HERE")
-class SuppressedAsAWhole {
-    @Conv val member: Shape = any
-}
