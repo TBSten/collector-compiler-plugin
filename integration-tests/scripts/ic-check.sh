@@ -125,8 +125,11 @@ ITEMS=ic-items/src/main/kotlin/Items.kt
 LOCAL=ic-app/src/main/kotlin/Local.kt
 rm -rf build/ic-sources && mkdir -p build/ic-sources
 cp "$DEFS" "$ITEMS" "$LOCAL" build/ic-sources/
+PLAIN_ITEMS=ic-items/src/main/kotlin/Plain.kt
+PLAIN_APP=ic-app/src/main/kotlin/Plain.kt
 restore_sources() {
     cp build/ic-sources/Defs.kt "$DEFS"; cp build/ic-sources/Items.kt "$ITEMS"; cp build/ic-sources/Local.kt "$LOCAL"
+    rm -f "$PLAIN_ITEMS" "$PLAIN_APP"
 }
 trap 'cleanup; restore_sources' EXIT
 edit() { # <sed expression> <file>
@@ -145,6 +148,19 @@ expect_output() { # <label> <expected output of :ic-app:run>
 }
 
 expect_output "jvm: baseline" "[loc1, loc2, up1, up2]"
+
+# A file without items or calls is edited: the items of the other files of its module stay. Kotlin deletes what a
+# plugin generated in every incremental round, so the plugin has the files of items and of calls compiled again each
+# time; without that, the items of the files that were not edited would be gone.
+printf 'package ic.items\n\nfun plain() = 1\n' > "$PLAIN_ITEMS"
+printf 'package ic.app\n\nfun plain() = 1\n' > "$PLAIN_APP"
+expect_output "jvm: files without items added" "[loc1, loc2, up1, up2]"
+
+edit 's/= 1/= 2/' "$PLAIN_ITEMS"
+expect_output "jvm: file without items edited in the module of the items" "[loc1, loc2, up1, up2]"
+
+edit 's/= 1/= 2/' "$PLAIN_APP"
+expect_output "jvm: file without items edited in the module of the call" "[loc1, loc2, up1, up2]"
 
 edit 's/^@Tracked val loc2/val loc2/' "$LOCAL"
 expect_output "jvm: annotation removed in the module of the call" "[loc1, up1, up2]"
