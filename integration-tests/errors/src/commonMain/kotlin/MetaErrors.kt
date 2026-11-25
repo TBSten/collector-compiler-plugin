@@ -37,3 +37,14 @@ private class HiddenTarget
 
 @PrivatelyLinked @LinkedToPublic val linked = "linked"
 
+// The collected annotation itself is built there too.
+private annotation class HiddenLink
+
+@CollectorFor<HiddenLink>() private object HiddenLinkCollector : Collector<Any>
+
+@HiddenLink annotation class ThroughHiddenLink // E: META_ANNOTATION_PRIVATE_ARGUMENT
+
+@HiddenLink private annotation class PrivatelyThroughHiddenLink
+
+@PrivatelyThroughHiddenLink val hiddenLinked = "linked"
+
