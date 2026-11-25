@@ -8,10 +8,12 @@ import org.jetbrains.kotlin.backend.common.IrElementTransformerVoidWithContext
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.backend.common.lower.DeclarationIrBuilder
 import org.jetbrains.kotlin.ir.builders.IrBuilderWithScope
+import org.jetbrains.kotlin.ir.builders.irAs
 import org.jetbrains.kotlin.ir.builders.irCall
 import org.jetbrains.kotlin.ir.builders.irGetObject
 import org.jetbrains.kotlin.ir.builders.irNull
 import org.jetbrains.kotlin.ir.declarations.IrParameterKind
+import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
 import org.jetbrains.kotlin.ir.declarations.name
 import org.jetbrains.kotlin.ir.expressions.IrCall
 import org.jetbrains.kotlin.ir.expressions.IrConst
@@ -22,6 +24,7 @@ import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
 import org.jetbrains.kotlin.ir.types.IrSimpleType
 import org.jetbrains.kotlin.ir.types.IrType
 import org.jetbrains.kotlin.ir.types.classOrNull
+import org.jetbrains.kotlin.ir.types.isNullableAny
 import org.jetbrains.kotlin.ir.types.typeOrFail
 import org.jetbrains.kotlin.ir.types.typeWith
 import org.jetbrains.kotlin.ir.util.classId
@@ -89,9 +92,18 @@ internal class CollectCallTransformer(
         }
     }
 
-    /** `Item_x.as_C()` */
-    private fun value(entry: CollectedEntry): ElementBuilder = { b ->
-        b.irCall(entry.asFunction).apply { arguments[0] = b.irGetObject(entry.holder) }
+    /** `Item_x.as_C()`, cast to [type] when the holder declares `Any?` in place of a T of a private class. */
+    private fun value(entry: CollectedEntry, type: IrType): ElementBuilder = { b ->
+        val call = b.irCall(entry.asFunction).apply { arguments[0] = b.irGetObject(entry.holder) }
+        if (call.type.isNullableAny() && !type.isNullableAny()) b.irAs(call, type) else call
+    }
+
+    /** `Item_x.annotations_X()`, cast to [listOfA] when the holder declares `List<Annotation>` in place of a private X. */
+    private fun annotations(b: IrBuilderWithScope, entry: CollectedEntry, function: IrSimpleFunction, a: IrType, listOfA: IrType): IrExpression {
+        val call = b.irCall(function.symbol).apply { arguments[0] = b.irGetObject(entry.holder) }
+        val annotation = context.irBuiltIns.annotationClass
+        val declared = (function.returnType as IrSimpleType).arguments.single().typeOrFail.classOrNull
+        return if (declared == annotation && a.classOrNull != annotation) b.irAs(call, listOfA) else call
     }
 
     /** [typeArguments] are those of the call: `<T>`, or `<A, T>` for the kinds with annotations. */
@@ -103,7 +115,7 @@ internal class CollectCallTransformer(
         entries: List<CollectedEntry>,
     ): IrExpression {
         val elementType = typeArguments.last()
-        val values = entries.map { value(it) }
+        val values = entries.map { value(it, elementType) }
         return when (kind) {
             CollectKind.AS_LIST -> varargCall(b, symbols.listOf, elementType, resultType, values)
             CollectKind.AS_SET -> varargCall(b, symbols.setOf, elementType, resultType, values)
@@ -136,8 +148,8 @@ internal class CollectCallTransformer(
                     inner.irCall(symbols.pair.owner.primaryConstructor!!.symbol, pairType).apply {
                         this.typeArguments[0] = listOfA
                         this.typeArguments[1] = t
-                        arguments[0] = inner.irCall(annotationsFn.symbol).apply { arguments[0] = inner.irGetObject(e.holder) }
-                        arguments[1] = value(e)(inner)
+                        arguments[0] = annotations(inner, e, annotationsFn, a, listOfA)
+                        arguments[1] = value(e, t)(inner)
                     }
                 }
                 pair

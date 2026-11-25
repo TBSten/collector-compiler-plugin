@@ -8,6 +8,9 @@ import org.jetbrains.kotlin.fir.java.javaSymbolProvider
 import org.jetbrains.kotlin.fir.resolve.providers.dependenciesSymbolProvider
 import org.jetbrains.kotlin.fir.resolve.providers.firProvider
 import org.jetbrains.kotlin.fir.symbols.SymbolInternals
+import org.jetbrains.kotlin.fir.types.ConeClassLikeType
+import org.jetbrains.kotlin.fir.types.ConeKotlinType
+import org.jetbrains.kotlin.fir.types.contains
 import org.jetbrains.kotlin.name.ClassId
 
 /**
@@ -32,3 +35,7 @@ internal fun FirSession.classLikeDeclaration(id: ClassId): FirClassLikeDeclarati
  */
 internal fun FirSession.isFilePrivate(id: ClassId): Boolean =
     id.isLocal || generateSequence(id) { it.outerClassId }.any { classLikeDeclaration(it)?.visibility == Visibilities.Private }
+
+/** Whether [this] or one of its type arguments is of a class only one file can name (see [isFilePrivate]). */
+internal fun ConeKotlinType.namesFilePrivateClass(session: FirSession): Boolean =
+    contains { it is ConeClassLikeType && session.isFilePrivate(it.lookupTag.classId) }

@@ -43,15 +43,21 @@ import org.jetbrains.kotlin.name.SpecialNames
 internal fun IrDeclaration.isCollectorGenerated(): Boolean =
     (origin as? IrDeclarationOrigin.GeneratedByPlugin)?.pluginKey == CollectorPluginKey
 
-/** The `key: value` lines of the message FIR gave a generated declaration (see [HintMessage]). */
-private fun IrDeclaration.hintFields(): Map<String, String> {
-    val marker = annotations.firstOrNull { it.isAnnotationWithEqualFqName(StandardNames.FqNames.deprecated) } ?: return emptyMap()
-    val message = (marker.arguments.firstOrNull() as? IrConst)?.value as? String ?: return emptyMap()
-    return HintMessage.fields(message)
+/** The message FIR gave a generated declaration (see [HintMessage]), or null when it has none. */
+private fun IrDeclaration.hintMessage(): String? {
+    val marker = annotations.firstOrNull { it.isAnnotationWithEqualFqName(StandardNames.FqNames.deprecated) } ?: return null
+    return (marker.arguments.firstOrNull() as? IrConst)?.value as? String
 }
+
+/** The `key: value` lines of the message FIR gave a generated declaration. */
+private fun IrDeclaration.hintFields(): Map<String, String> = hintMessage()?.let { HintMessage.fields(it) }.orEmpty()
 
 /** The item a holder stands for, or null when [this] is not a holder. */
 internal fun IrClass.itemIdentity(): ItemIdentity? = ItemIdentity.fromFields(hintFields())
+
+/** The class ids a holder records under [key], which is written once per class ([HintMessage.COLLECTOR], [HintMessage.ANNOTATION]). */
+internal fun IrClass.hintClasses(key: String): List<ClassId> =
+    hintMessage()?.let { message -> HintMessage.values(message, key).map { ClassId.fromString(it) } }.orEmpty()
 
 /**
  * The Collector of a `collectorTag_` hint: the class id its message records, or else the type of its parameter (a

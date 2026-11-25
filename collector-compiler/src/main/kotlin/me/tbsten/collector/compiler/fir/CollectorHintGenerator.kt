@@ -32,6 +32,9 @@ import org.jetbrains.kotlin.name.StandardClassIds
  * signatures are generated here; the bodies are filled in IR.
  *
  * What to generate comes from the session components [CollectorIndex] and [CollectorItemIndex].
+ *
+ * All of it is in files of its own, so no signature names a class that only one file can name (see [isFilePrivate]):
+ * a marker or a supertype stands for it, and what it stands for is in the message of the hint or of the holder.
  */
 @OptIn(ExperimentalTopLevelDeclarationsGenerationApi::class)
 class CollectorHintGenerator(session: FirSession) : FirDeclarationGenerationExtension(session) {
@@ -49,7 +52,9 @@ class CollectorHintGenerator(session: FirSession) : FirDeclarationGenerationExte
     override fun generateTopLevelClassLikeDeclaration(classId: ClassId): FirClassLikeSymbol<*>? {
         val (kind, fields) = items.own.missedMarkers[classId]?.let { ClassKind.INTERFACE to listOf(HintMessage.MISSED to it) }
             ?: items.own.byHolder[classId]?.let { item ->
-                ClassKind.OBJECT to item.identity.toFields() + visibleCollectors(item).map { HintMessage.COLLECTOR to it.collector.asString() }
+                ClassKind.OBJECT to item.identity.toFields() +
+                    item.annotations.map { HintMessage.ANNOTATION to it.asString() } +
+                    visibleCollectors(item).map { HintMessage.COLLECTOR to it.collector.asString() }
             }
             ?: classId.takeIf { it in items.privateMarkers.values }?.let { ClassKind.INTERFACE to emptyList() }
             ?: return null
@@ -98,6 +103,9 @@ class CollectorHintGenerator(session: FirSession) : FirDeclarationGenerationExte
     /**
      * The members of a holder: `annotations_<enc(X)>(): List<X>` for each collected annotation X on the item, and
      * `as_<enc(C)>(): T` for each Collector C the item converts for.
+     *
+     * When X is private, the list is declared as `List<Annotation>`, and `as_<enc(C)>()` as `Any?` when T is of a
+     * private class. IR reads X and C from the message of the holder, and call sites cast.
      */
     private fun generateHolderMembers(callableId: CallableId, owner: FirClassSymbol<*>): List<FirNamedFunctionSymbol> {
         val item = itemOf(owner) ?: return emptyList()
@@ -108,7 +116,8 @@ class CollectorHintGenerator(session: FirSession) : FirDeclarationGenerationExte
             .filter { CollectorNames.asFunction(it.collector) == callableId.callableName }
             .mapNotNull { c ->
                 val type = c.elementType ?: return@mapNotNull null
-                createMemberFunction(owner, CollectorPluginKey, callableId.callableName, type).symbol
+                val declared = if (type.namesFilePrivateClass(session)) session.builtinTypes.nullableAnyType.coneType else type
+                createMemberFunction(owner, CollectorPluginKey, callableId.callableName, declared).symbol
             }
     }
 
@@ -119,7 +128,8 @@ class CollectorHintGenerator(session: FirSession) : FirDeclarationGenerationExte
     private fun annotationsFunction(owner: FirClassSymbol<*>, item: ItemDef, x: ClassId): FirNamedFunctionSymbol {
         // the function is named after X, and typed with the class X is in this module
         val annotationClass = collectors.annotationClassOf(x)
-        val type = StandardClassIds.List.constructClassLikeType(arrayOf(annotationClass.constructClassLikeType()))
+        val element = if (session.isFilePrivate(annotationClass)) StandardClassIds.Annotation else annotationClass
+        val type = StandardClassIds.List.constructClassLikeType(arrayOf(element.constructClassLikeType()))
         val function = createMemberFunction(owner, CollectorPluginKey, CollectorNames.annotationsFunction(x), type)
         val copies = annotationsOfType(session, item.declaration.annotations.filter { it.annotatesDeclaration() }, annotationClass)
             .map { buildAnnotationCopy(it) { useSiteTarget = null } }

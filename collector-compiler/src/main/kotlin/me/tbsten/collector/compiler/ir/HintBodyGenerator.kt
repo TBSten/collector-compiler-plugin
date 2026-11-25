@@ -24,8 +24,12 @@ internal class HintBodyGenerator(
     private val module: IrModuleFragment,
 ) {
     private val bridges = ItemBridges(context)
-    private val conversion = ItemConversion(context, bridges)
-    private val annotations = ItemAnnotations(context, symbols, bridges)
+
+    // The classes a holder names in its message, for members whose signature can not name them. FIR recorded what the
+    // file of the item depends on, so these lookups need no file to be recorded for.
+    private val finder = context.finderForBuiltins()
+    private val conversion = ItemConversion(context, bridges, finder)
+    private val annotations = ItemAnnotations(context, symbols, bridges, finder)
     private val declarations = ItemDeclarations(module)
 
     fun generate() {

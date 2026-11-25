@@ -2,7 +2,10 @@ package me.tbsten.collector.compiler.ir
 
 import me.tbsten.collector.compiler.ClassConversion
 import me.tbsten.collector.compiler.ClassConversionFacts
+import me.tbsten.collector.compiler.CollectorNames
+import me.tbsten.collector.compiler.HintMessage
 import me.tbsten.collector.compiler.selectClassConversion
+import org.jetbrains.kotlin.backend.common.extensions.DeclarationFinder
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.backend.common.lower.DeclarationIrBuilder
 import org.jetbrains.kotlin.descriptors.ClassKind
@@ -29,27 +32,49 @@ import org.jetbrains.kotlin.ir.types.IrType
 import org.jetbrains.kotlin.ir.types.IrTypeSystemContextImpl
 import org.jetbrains.kotlin.ir.types.classOrNull
 import org.jetbrains.kotlin.ir.types.defaultType
+import org.jetbrains.kotlin.ir.types.isNullableAny
 import org.jetbrains.kotlin.ir.types.isSubtypeOf
 import org.jetbrains.kotlin.ir.types.typeOrFail
+import org.jetbrains.kotlin.ir.types.typeOrNull
 import org.jetbrains.kotlin.ir.types.typeWith
+import org.jetbrains.kotlin.ir.util.classId
 import org.jetbrains.kotlin.ir.util.constructors
 import org.jetbrains.kotlin.ir.util.defaultType
 import org.jetbrains.kotlin.ir.util.isObject
 import org.jetbrains.kotlin.ir.util.parentAsClass
 
 /** Builds the bodies of `as_<C>()`: the expression that turns an item declaration into a value of T. */
-internal class ItemConversion(private val context: IrPluginContext, private val bridges: ItemBridges) {
+internal class ItemConversion(
+    private val context: IrPluginContext,
+    private val bridges: ItemBridges,
+    private val finder: DeclarationFinder,
+) {
     private val typeSystem = IrTypeSystemContextImpl(context.irBuiltIns)
+
     /**
-     * Gives the holder member [holderFn] the body `return <target as T>`. A private [target], or one inside a private
-     * class, is converted by a bridge next to it.
+     * Gives the holder member [holderFn], declared as `as_<C>(): T`, the body `return <target as T>`. A private
+     * [target], or one inside a private class, is converted by a bridge next to it.
+     *
+     * So is every item when T is of a private class: the holder can not name T, FIR declares `Any?`, and the
+     * conversion, which needs T, is built where the item is.
      */
     fun fill(holderFn: IrSimpleFunction, target: IrDeclaration) {
-        val type = holderFn.returnType
-        val bridge = bridges.bridgeFor(holderFn, target) { convert(type, target) }
+        val declared = holderFn.returnType
+        val type = if (declared.isNullableAny()) elementTypeOf(holderFn) ?: declared else declared
+        val bridge = bridges.bridgeFor(holderFn, target, always = type != declared) { convert(type, target) }
         holderFn.body = DeclarationIrBuilder(context, holderFn.symbol).irBlockBody {
             +irReturn(if (bridge != null) with(bridges) { call(bridge) } else convert(type, target))
         }
+    }
+
+    /** T of the Collector the holder member [holderFn] is for: the message of the holder tells which Collector it is. */
+    private fun elementTypeOf(holderFn: IrSimpleFunction): IrType? {
+        val collector = holderFn.parentAsClass.hintClasses(HintMessage.COLLECTOR)
+            .firstOrNull { CollectorNames.asFunction(it) == holderFn.name }
+            ?.let { finder.findClass(it) }
+            ?: return null
+        val collectorType = collector.owner.superTypes.firstOrNull { it.classOrNull?.owner?.classId == CollectorNames.COLLECTOR }
+        return (collectorType as? IrSimpleType)?.arguments?.firstOrNull()?.typeOrNull
     }
 
     /** Turns [target] into a value of [t]. `conversionProblem()` on the FIR side accepted this conversion. */

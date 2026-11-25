@@ -97,16 +97,19 @@ internal object HintMessage {
     /**
      * - On a holder, written once per Collector: the class id of a Collector of the item's annotations that was
      *   visible where the item is declared. The item has no `as_<C>()` for a Collector C either when it does not
-     *   convert for C or when C was out of sight; this field tells the two apart.
+     *   convert for C or when C was out of sight; this field tells the two apart. It also tells which Collector each
+     *   `as_<C>()` is for, which its name (shortened when long) and its type (`Any?` for a private T) do not.
      * - On a `collectorFor_` or `collectorTag_` hint: the class id of the Collector. The type of the hint's parameter
      *   can not tell when the Collector is private: a marker stands for it there.
      */
     const val COLLECTOR = "collector"
 
     /**
-     * The field of a `collectorFor_` or `collectorKey_` hint: the class id of X as the module of the Collector knows
-     * it, which the hints of the items are named after. The type of the hint's parameter can not tell: for an `expect`
-     * annotation it turns into the `actual` class, and a marker stands for a private annotation.
+     * - On a `collectorFor_` or `collectorKey_` hint: the class id of X as the module of the Collector knows it, which
+     *   the hints of the items are named after. The type of the hint's parameter can not tell: for an `expect`
+     *   annotation it turns into the `actual` class, and a marker stands for a private annotation.
+     * - On a holder, written once per annotation: the class id of an X the item is collected through. It tells which
+     *   annotation each `annotations_<X>()` is for when its type (`List<Annotation>` for a private X) does not.
      */
     const val ANNOTATION = "annotation"
 
