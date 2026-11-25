@@ -10,6 +10,7 @@ import org.jetbrains.kotlin.diagnostics.error2
 import org.jetbrains.kotlin.diagnostics.rendering.BaseDiagnosticRendererFactory
 import org.jetbrains.kotlin.diagnostics.rendering.CommonRenderers
 import org.jetbrains.kotlin.diagnostics.warning1
+import org.jetbrains.kotlin.diagnostics.warning2
 import org.jetbrains.kotlin.psi.KtElement
 
 object CollectorErrors : KtDiagnosticsContainer() {
@@ -84,6 +85,13 @@ object CollectorErrors : KtDiagnosticsContainer() {
      * private class: it can not be built where the annotation class is used (args: the annotation, the private classes).
      */
     val META_ANNOTATION_PRIVATE_ARGUMENT by error2<KtElement, String, String>()
+
+    /**
+     * A collected annotation on a public annotation class that is internal itself, or has an argument that refers to
+     * an internal class: another module builds it where it uses the annotation class, which the compiler rejects when
+     * it verifies IR (args: the annotation, the internal classes).
+     */
+    val META_ANNOTATION_INTERNAL_ARGUMENT by warning2<KtElement, String, String>()
 
     /** The same annotation X twice on one Collector (arg: X). */
     val COLLECTOR_FOR_DUPLICATE by warning1<KtElement, String>(AT_NAME)
@@ -180,6 +188,14 @@ object CollectorErrors : KtDiagnosticsContainer() {
                 META_ANNOTATION_PRIVATE_ARGUMENT,
                 "@{0} is built again, with its arguments, where this annotation class is used, where {1} can not be reached. " +
                     "Make it internal or public, or make this annotation class private.",
+                CommonRenderers.STRING,
+                CommonRenderers.STRING,
+            )
+            map.put(
+                META_ANNOTATION_INTERNAL_ARGUMENT,
+                "@{0} is built again, with its arguments, where this annotation class is used. Another module that uses it " +
+                    "reaches {1}, which is internal: that works, but the compiler rejects it when it verifies IR (-Xverify-ir). " +
+                    "Make it public, or make this annotation class internal.",
                 CommonRenderers.STRING,
                 CommonRenderers.STRING,
             )

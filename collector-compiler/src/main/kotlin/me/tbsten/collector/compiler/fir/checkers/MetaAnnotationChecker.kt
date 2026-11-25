@@ -3,6 +3,7 @@ package me.tbsten.collector.compiler.fir.checkers
 import me.tbsten.collector.compiler.fir.CollectorErrors
 import me.tbsten.collector.compiler.fir.collectorIndex
 import org.jetbrains.kotlin.descriptors.ClassKind
+import org.jetbrains.kotlin.descriptors.Visibilities
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
 import org.jetbrains.kotlin.diagnostics.reportOn
 import org.jetbrains.kotlin.fir.FirElement
@@ -12,8 +13,10 @@ import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
 import org.jetbrains.kotlin.fir.analysis.checkers.declaration.FirRegularClassChecker
 import org.jetbrains.kotlin.fir.declarations.FirRegularClass
 import org.jetbrains.kotlin.fir.declarations.getRetention
+import org.jetbrains.kotlin.fir.declarations.hasAnnotation
 import org.jetbrains.kotlin.fir.declarations.toAnnotationClassId
 import org.jetbrains.kotlin.fir.declarations.utils.effectiveVisibility
+import org.jetbrains.kotlin.fir.declarations.utils.visibility
 import org.jetbrains.kotlin.fir.expressions.FirAnnotation
 import org.jetbrains.kotlin.fir.expressions.FirExpression
 import org.jetbrains.kotlin.fir.resolve.providers.symbolProvider
@@ -24,6 +27,7 @@ import org.jetbrains.kotlin.fir.types.ConeClassLikeType
 import org.jetbrains.kotlin.fir.types.forEachType
 import org.jetbrains.kotlin.fir.types.resolvedType
 import org.jetbrains.kotlin.fir.visitors.FirDefaultVisitorVoid
+import org.jetbrains.kotlin.name.StandardClassIds
 
 /**
  * Checks annotation classes annotated with an annotation X some visible Collector collects: meta-annotations, which
@@ -54,12 +58,26 @@ internal object MetaAnnotationChecker : FirRegularClassChecker(MppCheckerKind.Co
                 val built = listOfNotNull(xClass) + annotation.referencedClasses(session)
                 val hidden = built.filter { it.resolvedStatus.effectiveVisibility.privateApi }
                 if (hidden.isNotEmpty()) {
-                    val names = hidden.map { it.classId.shortClassName.asString() }.distinct().joinToString()
-                    reporter.reportOn(source, CollectorErrors.META_ANNOTATION_PRIVATE_ARGUMENT, x.shortClassName.asString(), names)
+                    reporter.reportOn(source, CollectorErrors.META_ANNOTATION_PRIVATE_ARGUMENT, x.shortClassName.asString(), hidden.names())
+                }
+                // Another module can use a public meta-annotation, and reaches what is internal here only as long as
+                // the compiler does not verify the IR of that module.
+                val internal = if (visibility.publicApi) built.filter { it.isInternal(session) } else emptyList()
+                if (internal.isNotEmpty()) {
+                    reporter.reportOn(source, CollectorErrors.META_ANNOTATION_INTERNAL_ARGUMENT, x.shortClassName.asString(), internal.names())
                 }
             }
         }
     }
+
+    private fun List<FirClassLikeSymbol<*>>.names(): String = map { it.classId.shortClassName.asString() }.distinct().joinToString()
+
+    /**
+     * Whether this class is internal and not `@PublishedApi`: verified IR of another module may not refer to it. The
+     * classes around it do not count there.
+     */
+    private fun FirClassLikeSymbol<*>.isInternal(session: FirSession): Boolean =
+        visibility == Visibilities.Internal && !hasAnnotation(StandardClassIds.Annotations.PublishedApi, session)
 
     /** The classes the arguments of this annotation refer to: `Foo::class`, an enum entry, an annotation as an argument. */
     private fun FirAnnotation.referencedClasses(session: FirSession): List<FirClassLikeSymbol<*>> {
