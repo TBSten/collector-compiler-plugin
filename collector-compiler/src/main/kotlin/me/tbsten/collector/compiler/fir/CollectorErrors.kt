@@ -80,8 +80,8 @@ object CollectorErrors : KtDiagnosticsContainer() {
     val META_ANNOTATION_SOURCE_RETENTION by warning1<KtElement, String>()
 
     /**
-     * A collected annotation on an annotation class, with an argument that refers to a private class: the argument
-     * can not be built where the annotation class is used (args: the annotation, the private classes).
+     * A collected annotation on an annotation class that is private itself, or has an argument that refers to a
+     * private class: it can not be built where the annotation class is used (args: the annotation, the private classes).
      */
     val META_ANNOTATION_PRIVATE_ARGUMENT by error2<KtElement, String, String>()
 
@@ -178,7 +178,7 @@ object CollectorErrors : KtDiagnosticsContainer() {
             )
             map.put(
                 META_ANNOTATION_PRIVATE_ARGUMENT,
-                "The arguments of @{0} are built again where this annotation class is used, where {1} can not be reached. " +
+                "@{0} is built again, with its arguments, where this annotation class is used, where {1} can not be reached. " +
                     "Make it internal or public, or make this annotation class private.",
                 CommonRenderers.STRING,
                 CommonRenderers.STRING,

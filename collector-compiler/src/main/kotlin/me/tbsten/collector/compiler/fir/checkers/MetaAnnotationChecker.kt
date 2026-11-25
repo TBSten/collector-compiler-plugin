@@ -30,8 +30,8 @@ import org.jetbrains.kotlin.fir.visitors.FirDefaultVisitorVoid
  * count as X wherever they are used (a Compose multipreview).
  *
  * The X on a meta-annotation is read where the meta-annotation is used: by the module that uses it, from what the
- * module of the meta-annotation compiled, and its arguments are built again in the file of each item. Both can fail
- * for reasons only the declaration of the meta-annotation shows.
+ * module of the meta-annotation compiled, and it is built again, with its arguments, in the file of each item. Both
+ * can fail for reasons only the declaration of the meta-annotation shows.
  */
 internal object MetaAnnotationChecker : FirRegularClassChecker(MppCheckerKind.Common) {
     context(context: CheckerContext, reporter: DiagnosticReporter)
@@ -49,9 +49,10 @@ internal object MetaAnnotationChecker : FirRegularClassChecker(MppCheckerKind.Co
             if (visibility.publicApi && xClass?.getRetention(session) == AnnotationRetention.SOURCE) {
                 reporter.reportOn(source, CollectorErrors.META_ANNOTATION_SOURCE_RETENTION, x.shortClassName.asString())
             }
-            // A private meta-annotation is only used in its own file, which sees what its arguments see.
+            // A private meta-annotation is only used in its own file, which sees what X and its arguments see.
             if (!visibility.privateApi) {
-                val hidden = annotation.referencedClasses(session).filter { it.resolvedStatus.effectiveVisibility.privateApi }
+                val built = listOfNotNull(xClass) + annotation.referencedClasses(session)
+                val hidden = built.filter { it.resolvedStatus.effectiveVisibility.privateApi }
                 if (hidden.isNotEmpty()) {
                     val names = hidden.map { it.classId.shortClassName.asString() }.distinct().joinToString()
                     reporter.reportOn(source, CollectorErrors.META_ANNOTATION_PRIVATE_ARGUMENT, x.shortClassName.asString(), names)
