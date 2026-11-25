@@ -63,7 +63,7 @@ object XCollector : Collector<T>  // T: 取り出すときの型
 - private な宣言も集められる（公開用の橋渡し関数が生成される）。
 - class を作るときに呼ぶコンストラクタは public か internal のものだけ（private・protected は対象外）。
 - `Any` のようにインスタンスも `KClass` も受け取れる T では、作れる class はインスタンスになり、作れないもの（interface や、呼べるコンストラクタのない class）は `Cls::class` になる。
-- class のメンバー、inner class、ローカル宣言、引数、型エイリアスに付けたものは集めない（警告 `ITEM_NOT_ALLOWED_HERE`）。エラーにはしないので、`@Serializable` のようにメンバーにも付けるアノテーションを X にしても、既存のコードはそのままコンパイルできる。
+- class のメンバー、inner class、ローカル宣言、引数、型エイリアスには付けられない（エラー）。
 - 変換できない組み合わせは、その Collector では集めない。見えているどの Collector にも合わなければ警告。
 - 1 つのファイル、または 1 つの object の中では、集める宣言の名前を重複させられない（オーバーロードや、同名の関数とプロパティはエラー）。同じパッケージの別ファイルなら同じ名前でよい（画面ごとのファイルに置く `private fun Preview()` など）。
 - 細かい入力の扱い:
@@ -158,9 +158,8 @@ val byPath: Map<Screen, Page> = ScreenCollector.collectAsMap()   // 同じキー
 | `ANNOTATION_MISREAD` | アノテーションをプラグインがコンパイラと違うクラスに読んだ（上の制約を参照）。完全修飾名で書くか、明示的に import する |
 | `META_ANNOTATION_IN_JAVA_SOURCE` | 同じモジュールの Java ソースで宣言したアノテーションクラスを、メタアノテーションとして使った |
 | `META_ANNOTATION_PRIVATE_ARGUMENT` | メタアノテーションに付けた X の引数が private なクラスを参照している |
-| `ITEM_NAME_CLASH` | 1 つのファイルか object の中に同じ名前の宣言が 2 つ（オーバーロード、同名の関数とプロパティ） |
+| `ITEM_NOT_ALLOWED_HERE` / `ITEM_NAME_CLASH` | 付けられない場所 / 1 つのファイルか object の中に同じ名前の宣言が 2 つ（オーバーロード、同名の関数とプロパティ） |
 | `HINT_FORMAT_MISMATCH` | 別バージョンの Collector でビルドされたモジュール |
-| `ITEM_NOT_ALLOWED_HERE`（警告） | 集められない場所に付いている（class のメンバー、inner class、ローカル宣言、引数、型エイリアス）。その宣言は集めない |
 | `ITEM_NOT_CONVERTIBLE`（警告） | どの Collector の T にも変換できない |
 | `ITEM_ANNOTATION_ONLY_ON_ACTUAL`（警告） | expect がアイテムの宣言で、actual にだけ付けたアノテーションがある（集められない） |
 | `COLLECT_MISSED_ITEMS`（警告） | その Collector が見えないモジュールやソースセットで付けられ、集められなかった宣言がある |
