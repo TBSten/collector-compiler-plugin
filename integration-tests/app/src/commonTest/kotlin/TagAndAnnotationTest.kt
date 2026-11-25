@@ -1,6 +1,10 @@
 import defs.AllPluginsCollector
 import defs.EntryCollector
+import defs.Keyed
+import defs.KeyedCollector
+import defs.PLUG
 import defs.PLUGINS
+import defs.PLUGINS_FROM_PARTS
 import defs.Page
 import defs.Plugin
 import defs.SampleCollector
@@ -15,6 +19,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
+private const val PLUGINS_IN_THIS_FILE = "$PLUG" + "ins"
+
 class TagAndAnnotationTest {
     @Test
     fun tagMergesCollectorsAndKeepsEachItemOnce() =
@@ -23,6 +29,15 @@ class TagAndAnnotationTest {
     @Test
     fun tagCanBeAConstVal() =
         assertEquals(listOf("alpha", "beta", "both"), collectAsList<Plugin>(tag = PLUGINS).map { it.id })
+
+    @Test
+    fun tagCanBeJoinedConstants() {
+        val expected = listOf("alpha", "beta", "both")
+        assertEquals(expected, collectAsList<Plugin>(tag = PLUGINS_FROM_PARTS).map { it.id })
+        assertEquals(expected, collectAsList<Plugin>(tag = PLUGINS_IN_THIS_FILE).map { it.id })
+        assertEquals(expected, collectAsList<Plugin>(tag = "plug" + "ins").map { it.id })
+        assertEquals(expected, collectAsList<Plugin>(tag = "${PLUG}ins").map { it.id })
+    }
 
     @Test
     fun tagWithASupertype() = assertEquals(3, collectAsList<Any>(tag = "plugins").size)
@@ -34,12 +49,24 @@ class TagAndAnnotationTest {
     fun singleByTag() = assertEquals("only", collectSingle<Plugin>(tag = "solo").id)
 
     @Test
+    fun oneCollectorUnderTwoTags() {
+        assertEquals("only", collectSingle<Plugin>(tag = "solo-a").id)
+        assertEquals("only", collectSingle<Plugin>(tag = "solo-b").id)
+    }
+
+    @Test
     fun repeatableCollectorFor() =
         assertEquals(listOf("alpha", "beta", "both"), AllPluginsCollector.collectAsList().map { it.id })
 
     @Test
     fun implicitReceiver() = with(EntryCollector) {
         assertEquals(listOf("defs", "a", "b", "c") + extraEntries(), collectAsList().map { it.name })
+    }
+
+    @Test
+    fun explicitThisReceiver() {
+        val names = EntryCollector.run { this.collectAsList() }.map { it.name }
+        assertEquals(EntryCollector.collectAsList().map { it.name }, names)
     }
 
     @Test
@@ -61,6 +88,13 @@ class TagAndAnnotationTest {
         val map: Map<Screen, Page> = ScreenCollector.collectAsMap()
         assertEquals(listOf("/home", "/settings"), map.keys.map { it.path })
         assertEquals("Home", map.entries.first { it.key.path == "/home" }.value.title)
+    }
+
+    @Test
+    fun asMapWithArrayArguments() {
+        val map = KeyedCollector.collectAsMap<Keyed, String>()
+        assertEquals(listOf("defs"), map.values.toList())
+        assertEquals(listOf("a", "b"), map.keys.single().names.toList())
     }
 
     private val lazyMap by ScreenCollector.lazyCollectAsMap<Screen, Page>()

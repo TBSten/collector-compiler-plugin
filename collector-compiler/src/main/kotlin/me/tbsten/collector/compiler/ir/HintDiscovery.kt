@@ -1,19 +1,18 @@
 package me.tbsten.collector.compiler.ir
 
 import me.tbsten.collector.compiler.CollectorNames
+import me.tbsten.collector.compiler.ItemIdentity
 import org.jetbrains.kotlin.backend.common.extensions.DeclarationFinder
-import org.jetbrains.kotlin.ir.declarations.IrClass
 import org.jetbrains.kotlin.ir.symbols.IrClassSymbol
 import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
 import org.jetbrains.kotlin.ir.types.classOrNull
-import org.jetbrains.kotlin.ir.util.classId
 import org.jetbrains.kotlin.ir.util.functions
 import org.jetbrains.kotlin.name.ClassId
 
 /** One collected item as seen from a call site. */
 internal class CollectedEntry(
     val holder: IrClassSymbol,
-    val fqName: String,
+    val identity: ItemIdentity,
     /** `as_<enc(C)>()` on the holder. */
     val asFunction: IrSimpleFunctionSymbol,
     /** Annotations X the item is collected through (for collectWithAnnotation / collectAsMap). */
@@ -30,13 +29,12 @@ internal class HintDiscovery(private val finder: DeclarationFinder) {
     private val entriesByCollector = mutableMapOf<ClassId, List<CollectedEntry>>()
 
     /** The items of [collector], sorted by declaration FQN. Holders without `as_<C>()` are left out. */
-    fun entriesFor(collector: IrClass): List<CollectedEntry> =
-        entriesByCollector.getOrPut(collector.classId!!) { findEntries(collector.classId!!) }
+    fun entriesFor(collector: ClassId): List<CollectedEntry> = entriesByCollector.getOrPut(collector) { findEntries(collector) }
 
     private fun findEntries(collector: ClassId): List<CollectedEntry> {
         // collectorKey_<C>(a: X): the annotations C collects
         val xs = finder.findFunctions(CollectorNames.collectorKeyHint(collector))
-            .mapNotNull { it.owner.parameters.firstOrNull()?.type?.classOrNull?.owner?.classId }
+            .mapNotNull { it.owner.hintAnnotation() }
             .distinct()
         val asName = CollectorNames.asFunction(collector)
         // item_<X>(i: Item_…): the holders of the items annotated with X
@@ -44,19 +42,20 @@ internal class HintDiscovery(private val finder: DeclarationFinder) {
             .mapNotNull { (x, hint) -> hint.owner.parameters.firstOrNull()?.type?.classOrNull?.let { x to it } }
             .groupBy({ it.second }, { it.first })
             .mapNotNull { (holder, annotations) ->
+                val identity = holder.owner.itemIdentity() ?: return@mapNotNull null
                 val fn = holder.owner.functions.firstOrNull { it.name == asName } ?: return@mapNotNull null
-                CollectedEntry(holder, CollectorNames.decodeHolderName(holder.owner.name.asString()), fn.symbol, annotations.distinct())
+                CollectedEntry(holder, identity, fn.symbol, annotations.distinct())
             }
-            .sortedBy { it.fqName }
+            .sortedBy { it.identity }
     }
 
     /** The items of every Collector tagged [tag], sorted by FQN; an item reached through several of them appears once. */
     fun entriesForTag(tag: String): List<CollectedEntry> =
         finder.findFunctions(CollectorNames.collectorTagHint(tag))
-            .mapNotNull { it.owner.parameters.firstOrNull()?.type?.classOrNull?.owner }
-            .distinctBy { it.classId }
-            .sortedBy { it.classId!!.asFqNameString() }
+            .mapNotNull { it.owner.hintCollector() }
+            .distinct()
+            .sortedBy { it.asFqNameString() }
             .flatMap { entriesFor(it) }
             .distinctBy { it.holder }
-            .sortedBy { it.fqName }
+            .sortedBy { it.identity }
 }

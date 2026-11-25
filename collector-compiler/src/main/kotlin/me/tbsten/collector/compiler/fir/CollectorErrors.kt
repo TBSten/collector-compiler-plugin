@@ -3,14 +3,23 @@ package me.tbsten.collector.compiler.fir
 import me.tbsten.collector.compiler.CollectorNames
 import org.jetbrains.kotlin.diagnostics.KtDiagnosticFactoryToRendererMap
 import org.jetbrains.kotlin.diagnostics.KtDiagnosticsContainer
+import org.jetbrains.kotlin.diagnostics.SourceElementPositioningStrategies
 import org.jetbrains.kotlin.diagnostics.error0
 import org.jetbrains.kotlin.diagnostics.error1
+import org.jetbrains.kotlin.diagnostics.error2
 import org.jetbrains.kotlin.diagnostics.rendering.BaseDiagnosticRendererFactory
 import org.jetbrains.kotlin.diagnostics.rendering.CommonRenderers
 import org.jetbrains.kotlin.diagnostics.warning1
+import org.jetbrains.kotlin.diagnostics.warning2
 import org.jetbrains.kotlin.psi.KtElement
 
 object CollectorErrors : KtDiagnosticsContainer() {
+    /**
+     * On a declaration, only its name is marked, not the annotations, modifiers and body around it. The strategy
+     * falls back to the whole element for what has no name, such as a call.
+     */
+    private val AT_NAME = SourceElementPositioningStrategies.DECLARATION_NAME
+
     /** `collect*()` was called on something other than a `@CollectorFor` object reference. */
     val RECEIVER_NOT_COLLECTOR_OBJECT by error0<KtElement>()
 
@@ -36,30 +45,73 @@ object CollectorErrors : KtDiagnosticsContainer() {
     val COLLECT_CALLABLE_REFERENCE by error0<KtElement>()
 
     /** Hints written by another version of the plugin (arg: those hints). */
-    val HINT_FORMAT_MISMATCH by error1<KtElement, String>()
+    val HINT_FORMAT_MISMATCH by error1<KtElement, String>(AT_NAME)
 
     /** `tag` of `@CollectorFor` that is not a string literal. */
     val COLLECTOR_FOR_TAG_NOT_LITERAL by error0<KtElement>()
 
     /** `@CollectorFor` on something other than an object. */
-    val COLLECTOR_FOR_NOT_OBJECT by error0<KtElement>()
+    val COLLECTOR_FOR_NOT_OBJECT by error0<KtElement>(AT_NAME)
 
     /** `@CollectorFor` on an object that does not implement `Collector<T>`. */
-    val COLLECTOR_FOR_NOT_COLLECTOR by error0<KtElement>()
+    val COLLECTOR_FOR_NOT_COLLECTOR by error0<KtElement>(AT_NAME)
+
+    /** X of `@CollectorFor<X>` that is not an annotation class: `Nothing`, `Annotation` (arg: X). */
+    val COLLECTOR_FOR_NOT_ANNOTATION_CLASS by error1<KtElement, String>()
+
+    /** X of `@CollectorFor<X>` that is an annotation class with type parameters (arg: X). */
+    val COLLECTOR_FOR_GENERIC_ANNOTATION by error1<KtElement, String>()
+
+    /** `@CollectorFor` written through an import alias or a type alias, which hides the Collector from the plugin. */
+    val COLLECTOR_FOR_ALIASED by error0<KtElement>(AT_NAME)
+
+    /** An annotation the plugin read differently from the compiler (arg: the annotations concerned). */
+    val ANNOTATION_MISREAD by error1<KtElement, String>(AT_NAME)
+
+    /**
+     * A collected annotation reached through an annotation class of a Java source of this module, which the plugin
+     * can not look into (arg: those annotation classes).
+     */
+    val META_ANNOTATION_IN_JAVA_SOURCE by error1<KtElement, String>(AT_NAME)
+
+    /**
+     * A collected annotation with SOURCE retention on a public annotation class: other modules that use the annotation
+     * class do not see it (arg: the annotation).
+     */
+    val META_ANNOTATION_SOURCE_RETENTION by warning1<KtElement, String>()
+
+    /**
+     * A collected annotation on an annotation class that is private itself, or has an argument that refers to a
+     * private class: it can not be built where the annotation class is used (args: the annotation, the private classes).
+     */
+    val META_ANNOTATION_PRIVATE_ARGUMENT by error2<KtElement, String, String>()
+
+    /**
+     * A collected annotation on a public annotation class that is internal itself, or has an argument that refers to
+     * an internal class: another module builds it where it uses the annotation class, which the compiler rejects when
+     * it verifies IR (args: the annotation, the internal classes).
+     */
+    val META_ANNOTATION_INTERNAL_ARGUMENT by warning2<KtElement, String, String>()
 
     /** The same annotation X twice on one Collector (arg: X). */
-    val COLLECTOR_FOR_DUPLICATE by warning1<KtElement, String>()
+    val COLLECTOR_FOR_DUPLICATE by warning1<KtElement, String>(AT_NAME)
 
     /** A collected annotation on a declaration that can not be collected (arg: why). */
-    val ITEM_NOT_ALLOWED_HERE by error1<KtElement, String>()
+    val ITEM_NOT_ALLOWED_HERE by error1<KtElement, String>(AT_NAME)
 
-    /** Two collected declarations with the same fully-qualified name (arg: the name). */
-    val ITEM_NAME_CLASH by error1<KtElement, String>()
+    /** Two collected declarations with the same name in one file or one object (arg: the name). */
+    val ITEM_NAME_CLASH by error1<KtElement, String>(AT_NAME)
+
+    /** A collected annotation on an actual declaration that its expect declaration, the item, does not have (arg: the annotations). */
+    val ITEM_ANNOTATION_ONLY_ON_ACTUAL by warning1<KtElement, String>(AT_NAME)
 
     /** A collected declaration that no visible Collector can convert (arg: per-Collector reasons). */
-    val ITEM_NOT_CONVERTIBLE by warning1<KtElement, String>()
+    val ITEM_NOT_CONVERTIBLE by warning1<KtElement, String>(AT_NAME)
 
-    /** A dependency has declarations with a collected annotation but saw no Collector for it (arg: those annotations). */
+    /**
+     * Declarations with a collected annotation that the Collector of the call does not get, because it was not
+     * visible where they are declared (arg: the annotations, with examples).
+     */
     val COLLECT_MISSED_ITEMS by warning1<KtElement, String>()
 
     override fun getRendererFactory(): BaseDiagnosticRendererFactory = Renderers
@@ -68,11 +120,12 @@ object CollectorErrors : KtDiagnosticsContainer() {
         override val MAP by KtDiagnosticFactoryToRendererMap("Collector") { map ->
             map.put(
                 COLLECT_MISSED_ITEMS,
-                "Some declarations are not collected because their module could not see a Collector for the annotation " +
-                    "when it was compiled: {0}. Make the Collector visible to that module, e.g. declare it next to the annotation.",
+                "Some declarations are not collected because the Collector was not visible where they are declared " +
+                    "(another module, or a source set the Collector is not part of). One example per module: {0}. " +
+                    "Make the Collector visible there, e.g. declare it next to the annotation.",
                 CommonRenderers.STRING,
             )
-            map.put(COLLECT_TAG_NOT_CONSTANT, "The tag must be a compile-time constant (a string literal or a const val).")
+            map.put(COLLECT_TAG_NOT_CONSTANT, "The tag must be a constant string: a string literal, a const val, or those joined with + or in a string template.")
             map.put(
                 COLLECT_TAG_TYPE_MISMATCH,
                 "Every Collector with this tag must collect a subtype of the requested type, but these do not: {0}.",
@@ -97,11 +150,65 @@ object CollectorErrors : KtDiagnosticsContainer() {
             map.put(COLLECTOR_FOR_TAG_NOT_LITERAL, "The tag of @CollectorFor must be a string literal.")
             map.put(COLLECTOR_FOR_NOT_OBJECT, "@CollectorFor can only be used on an object.")
             map.put(COLLECTOR_FOR_NOT_COLLECTOR, "An object annotated with @CollectorFor must implement Collector<T>.")
+            map.put(
+                COLLECTOR_FOR_ALIASED,
+                "@CollectorFor must be written with its own name: through an import alias or a type alias the Collector is not registered.",
+            )
+            map.put(
+                ANNOTATION_MISREAD,
+                "Collector reads annotations before the compiler resolves them and could not tell which annotation this is: {0}. " +
+                    "Write the annotation with its full name, or import it explicitly.",
+                CommonRenderers.STRING,
+            )
+            map.put(
+                META_ANNOTATION_IN_JAVA_SOURCE,
+                "{0} is declared in a Java source of this module, where Collector can not read the annotations on it, so this " +
+                    "declaration is not collected through it. Declare it in Kotlin or in another module, or annotate this declaration directly.",
+                CommonRenderers.STRING,
+            )
+            map.put(
+                COLLECTOR_FOR_NOT_ANNOTATION_CLASS,
+                "{0} is not an annotation class, so no declaration can be annotated with it.",
+                CommonRenderers.STRING,
+            )
+            map.put(
+                COLLECTOR_FOR_GENERIC_ANNOTATION,
+                "{0} has type parameters. Collector does not tell the type arguments of an annotation apart, " +
+                    "so annotation classes with type parameters can not be collected.",
+                CommonRenderers.STRING,
+            )
+            map.put(
+                META_ANNOTATION_SOURCE_RETENTION,
+                "@{0} has SOURCE retention, so it is not kept on this annotation class once compiled: declarations of other " +
+                    "modules annotated with this annotation class are not collected. Give @{0} BINARY or RUNTIME retention, or " +
+                    "annotate those declarations with @{0} directly.",
+                CommonRenderers.STRING,
+            )
+            map.put(
+                META_ANNOTATION_PRIVATE_ARGUMENT,
+                "@{0} is built again, with its arguments, where this annotation class is used, where {1} can not be reached. " +
+                    "Make it internal or public, or make this annotation class private.",
+                CommonRenderers.STRING,
+                CommonRenderers.STRING,
+            )
+            map.put(
+                META_ANNOTATION_INTERNAL_ARGUMENT,
+                "@{0} is built again, with its arguments, where this annotation class is used. Another module that uses it " +
+                    "reaches {1}, which is internal: that works, but the compiler rejects it when it verifies IR (-Xverify-ir). " +
+                    "Make it public, or make this annotation class internal.",
+                CommonRenderers.STRING,
+                CommonRenderers.STRING,
+            )
             map.put(COLLECTOR_FOR_DUPLICATE, "@CollectorFor<{0}> is repeated on the same object.", CommonRenderers.STRING)
             map.put(ITEM_NOT_ALLOWED_HERE, "This declaration can not be collected: {0}.", CommonRenderers.STRING)
             map.put(
                 ITEM_NAME_CLASH,
-                "Collected declarations must have distinct names, but {0} is used more than once (overloads, and declarations of the same name in other files of the package, are not supported).",
+                "Collected declarations of a file or of an object must have distinct names, but {0} is used more than once (overloads are not supported).",
+                CommonRenderers.STRING,
+            )
+            map.put(
+                ITEM_ANNOTATION_ONLY_ON_ACTUAL,
+                "{0} is not collected here: the item is the expect declaration, which is not annotated with it. Annotate the expect declaration too.",
                 CommonRenderers.STRING,
             )
             map.put(

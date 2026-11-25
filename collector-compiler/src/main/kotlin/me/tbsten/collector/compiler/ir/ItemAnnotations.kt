@@ -1,5 +1,9 @@
 package me.tbsten.collector.compiler.ir
 
+import me.tbsten.collector.compiler.CollectorNames
+import me.tbsten.collector.compiler.HintMessage
+import me.tbsten.collector.compiler.isNeverMetaAnnotation
+import org.jetbrains.kotlin.backend.common.extensions.DeclarationFinder
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.backend.common.lower.DeclarationIrBuilder
 import org.jetbrains.kotlin.descriptors.ClassKind
@@ -15,46 +19,72 @@ import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
 import org.jetbrains.kotlin.ir.expressions.IrConstructorCall
 import org.jetbrains.kotlin.ir.symbols.IrClassSymbol
 import org.jetbrains.kotlin.ir.types.IrSimpleType
-import org.jetbrains.kotlin.ir.types.classFqName
 import org.jetbrains.kotlin.ir.types.classOrNull
+import org.jetbrains.kotlin.ir.types.defaultType
 import org.jetbrains.kotlin.ir.types.typeOrFail
+import org.jetbrains.kotlin.ir.types.typeWith
+import org.jetbrains.kotlin.ir.util.classId
 import org.jetbrains.kotlin.ir.util.deepCopyWithSymbols
+import org.jetbrains.kotlin.ir.util.parentAsClass
 import org.jetbrains.kotlin.ir.visitors.IrVisitorVoid
 import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
 import org.jetbrains.kotlin.ir.visitors.acceptVoid
+import org.jetbrains.kotlin.name.ClassId
 
 /** Builds the bodies of `annotations_<X>()`: the X annotations of an item as a list. */
-internal class ItemAnnotations(private val context: IrPluginContext, private val symbols: CollectorSymbols) {
+internal class ItemAnnotations(
+    private val context: IrPluginContext,
+    private val symbols: CollectorSymbols,
+    private val bridges: ItemBridges,
+    private val finder: DeclarationFinder,
+) {
     /**
-     * Gives the holder member [holderFn], declared as `annotations_<X>(): List<X>`, the body `return listOf(X(…), …)`:
-     * copies of the X annotations on [target], in source order, with meta-annotations expanded in place.
+     * Gives the holder member [holderFn], declared as `annotations_<X>(): List<X>` (`List<Annotation>` for a private
+     * X), the body `return <bridge>()`. The bridge, next to [target], returns `listOf(X(…), …)`: the X annotations of
+     * the item, in source order, with meta-annotations expanded in place.
+     *
+     * They are the annotations FIR copied onto [holderFn], which call sites already compare (collectAsMap keys). For
+     * an expect declaration those are the ones written on it, which its actual, the [target], need not repeat.
+     *
+     * The annotations are built where they were written. What their arguments refer to is visible there (a private
+     * class, a private annotation class), and the classes the JVM backend generates to implement them end up in a
+     * real file: in the holder's file, which has no lines, the default values of an annotation of the same module
+     * trip the backend's line number assertion.
      */
     fun fill(holderFn: IrSimpleFunction, target: IrDeclaration) {
-        val elementType = (holderFn.returnType as IrSimpleType).arguments.single().typeOrFail
-        val x = elementType.classOrNull ?: error("Collector: ${holderFn.name} does not return a list of annotations")
-        val annotations = annotationsOfType(target.annotations, x, emptySet())
+        val x = annotationClass(holderFn)
+        val elementType = x.defaultType
+        val listType = context.irBuiltIns.listClass.typeWith(elementType)
+        val annotations = holderFn.annotationsOfType(x).ifEmpty { target.annotationsOfType(x) }
+        val bridge = bridges.bridgeFor(holderFn, target, always = true) {
+            irCall(symbols.listOf, listType, typeArguments = listOf(elementType)).apply {
+                val parent = scope.getLocalDeclarationParent()
+                arguments[0] = irVararg(elementType, annotations.map { it.deepCopyWithSymbols(parent).withoutOffsets() })
+            }
+        } ?: error("Collector: no bridge for ${holderFn.name}")
         holderFn.body = DeclarationIrBuilder(context, holderFn.symbol).irBlockBody {
-            +irReturn(
-                irCall(symbols.listOf, holderFn.returnType, typeArguments = listOf(elementType)).apply {
-                    arguments[0] = irVararg(elementType, annotations.map { it.deepCopyWithSymbols(holderFn).withoutOffsets() })
-                },
-            )
+            +irReturn(with(bridges) { call(bridge) })
         }
     }
 
-    /** The [x] annotations among [annotations], with meta-annotations (annotation classes carrying X) expanded in place. */
-    private fun annotationsOfType(annotations: List<IrConstructorCall>, x: IrClassSymbol, path: Set<String>): List<IrConstructorCall> =
-        annotations.flatMap { annotation ->
-            if (annotation.type.classOrNull == x) return@flatMap listOf(annotation)
-            val fq = annotation.type.classFqName?.asString() ?: return@flatMap emptyList()
-            if (fq in path || fq.startsWith("kotlin")) return@flatMap emptyList()
-            val meta = annotation.type.classOrNull?.owner?.takeIf { it.kind == ClassKind.ANNOTATION_CLASS } ?: return@flatMap emptyList()
-            annotationsOfType(meta.annotations, x, path + fq)
-        }
+    /**
+     * X of the holder member [holderFn], declared as `annotations_<X>(): List<X>`. For a private X, which the holder
+     * can not name, FIR declares `List<Annotation>`, and the message of the holder tells which annotation it is.
+     */
+    fun annotationClass(holderFn: IrSimpleFunction): IrClassSymbol {
+        val declared = (holderFn.returnType as IrSimpleType).arguments.single().typeOrFail.classOrNull
+            ?: error("Collector: ${holderFn.name} does not return a list of annotations")
+        if (declared != context.irBuiltIns.annotationClass) return declared
+        val holder = holderFn.parentAsClass
+        return holder.hintClasses(HintMessage.ANNOTATION)
+            .firstOrNull { CollectorNames.annotationsFunction(it) == holderFn.name }
+            ?.let { finder.findClass(it) }
+            ?: error("Collector: the holder ${holder.name} does not record the annotation of ${holderFn.name}")
+    }
 
     /**
-     * The copied annotation keeps offsets of the item's file, which mean nothing in the holder's file (the JVM
-     * line-number mapper asserts on them), so drop them.
+     * A copied annotation keeps its offsets, which for one that comes from a meta-annotation are those of another
+     * file. They are of no use, and the JVM line number mapper asserts on offsets that are not of its file: drop them.
      */
     private fun <E : IrElement> E.withoutOffsets(): E = apply {
         acceptVoid(object : IrVisitorVoid() {
@@ -68,3 +98,16 @@ internal class ItemAnnotations(private val context: IrPluginContext, private val
         })
     }
 }
+
+/** The [x] annotations on [this], in source order, with meta-annotations (annotation classes carrying X) expanded in place. */
+internal fun IrDeclaration.annotationsOfType(x: IrClassSymbol): List<IrConstructorCall> = annotationsOfType(annotations, x, emptySet())
+
+private fun annotationsOfType(annotations: List<IrConstructorCall>, x: IrClassSymbol, path: Set<ClassId>): List<IrConstructorCall> =
+    annotations.flatMap { annotation ->
+        val symbol = annotation.type.classOrNull ?: return@flatMap emptyList()
+        if (symbol == x) return@flatMap listOf(annotation)
+        val meta = symbol.owner.takeIf { it.kind == ClassKind.ANNOTATION_CLASS } ?: return@flatMap emptyList()
+        val id = meta.classId ?: return@flatMap emptyList()
+        if (id in path || id.isNeverMetaAnnotation()) return@flatMap emptyList()
+        annotationsOfType(meta.annotations, x, path + id)
+    }

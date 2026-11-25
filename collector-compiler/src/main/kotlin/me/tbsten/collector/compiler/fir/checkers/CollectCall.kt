@@ -7,11 +7,14 @@ import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
 import org.jetbrains.kotlin.fir.declarations.hasAnnotation
 import org.jetbrains.kotlin.fir.declarations.utils.isConst
+import org.jetbrains.kotlin.fir.expressions.FirCheckedSafeCallSubject
 import org.jetbrains.kotlin.fir.expressions.FirExpression
 import org.jetbrains.kotlin.fir.expressions.FirFunctionCall
 import org.jetbrains.kotlin.fir.expressions.FirLiteralExpression
 import org.jetbrains.kotlin.fir.expressions.FirPropertyAccessExpression
 import org.jetbrains.kotlin.fir.expressions.FirResolvedQualifier
+import org.jetbrains.kotlin.fir.expressions.FirSafeCallExpression
+import org.jetbrains.kotlin.fir.expressions.FirStringConcatenationCall
 import org.jetbrains.kotlin.fir.expressions.FirThisReceiverExpression
 import org.jetbrains.kotlin.fir.expressions.unwrapSmartcastExpression
 import org.jetbrains.kotlin.fir.references.toResolvedNamedFunctionSymbol
@@ -19,6 +22,9 @@ import org.jetbrains.kotlin.fir.references.toResolvedPropertySymbol
 import org.jetbrains.kotlin.fir.resolve.toRegularClassSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
 import org.jetbrains.kotlin.fir.types.resolvedType
+import org.jetbrains.kotlin.name.CallableId
+import org.jetbrains.kotlin.name.Name
+import org.jetbrains.kotlin.name.StandardClassIds
 
 /** A call of a `collect*()` placeholder, resolved to the Collectors it reads. */
 internal class CollectCall(
@@ -39,28 +45,54 @@ internal fun collectCall(expression: FirFunctionCall): CollectCall? {
     val callee = expression.calleeReference.toResolvedNamedFunctionSymbol() ?: return null
     val function = CollectFunction.of(callee.callableId) ?: return null
     val session = context.session
-    val receiver = expression.extensionReceiver?.unwrapSmartcastExpression()
+    val receiver = expression.extensionReceiver?.unwrapSmartcastExpression()?.unwrapSafeCallSubject()?.unwrapSmartcastExpression()
     if (receiver == null) {
         val tag = constantString(expression.argumentList.arguments.firstOrNull())
         val collectors = tag?.let { session.collectorHints.collectorsWithTag(it) }.orEmpty()
         return CollectCall(function, expression, tag, collectors, receiverIsValid = true)
     }
-    // `XCollector.collect…()` or the implicit receiver of `with(XCollector) { collect…() }`
-    val symbol = when {
-        receiver is FirResolvedQualifier -> receiver.qualifierSymbol as? FirRegularClassSymbol
-        receiver is FirThisReceiverExpression && receiver.isImplicit -> receiver.resolvedType.toRegularClassSymbol(session)
+    // `XCollector.collect…()`, or the receiver of `with(XCollector) { collect…() }`, written (`this.collect…()`) or not
+    val symbol = when (receiver) {
+        // the object a qualifier stands for as a value: the object itself, or the companion of a class (`Host.collect…()`)
+        is FirResolvedQualifier -> receiver.accessedObjectSymbol
+        is FirThisReceiverExpression -> receiver.resolvedType.toRegularClassSymbol(session)
         else -> null
     }
     val collector = symbol?.takeIf { it.classKind == ClassKind.OBJECT && it.hasAnnotation(CollectorNames.COLLECTOR_FOR, session) }
     return CollectCall(function, expression, tag = null, listOfNotNull(collector), receiverIsValid = collector != null)
 }
 
-/** A string literal or a reference to a `const val` holding one. */
-internal fun constantString(expression: FirExpression?): String? = when (val e = expression?.unwrapSmartcastExpression()) {
-    is FirLiteralExpression -> e.value as? String
-    is FirPropertyAccessExpression -> {
-        val property = e.calleeReference.toResolvedPropertySymbol()
-        if (property?.isConst == true) constantString(property.resolvedInitializer) else null
-    }
-    else -> null
+/**
+ * The receiver of the enclosing safe call when [this] stands for it: `XCollector` of `XCollector?.collect…()`. The
+ * subject itself only points at the receiver as it was before resolution.
+ */
+context(context: CheckerContext)
+private fun FirExpression.unwrapSafeCallSubject(): FirExpression {
+    if (this !is FirCheckedSafeCallSubject) return this
+    val safeCall = context.containingElements.lastOrNull { it is FirSafeCallExpression && it.checkedSubjectRef.value === this }
+    return (safeCall as? FirSafeCallExpression)?.receiver ?: this
 }
+
+/**
+ * A constant string: a literal, a `const val`, or those joined with `+` or in a string template. Not everything the
+ * compiler can evaluate: the IR rewrite reads the same forms from the call (`CollectCallTransformer`).
+ */
+internal fun constantString(expression: FirExpression?): String? {
+    return when (val e = expression?.unwrapSmartcastExpression()) {
+        is FirLiteralExpression -> e.value as? String
+        is FirPropertyAccessExpression -> {
+            val property = e.calleeReference.toResolvedPropertySymbol()
+            if (property?.isConst == true) constantString(property.resolvedInitializer) else null
+        }
+        is FirStringConcatenationCall -> e.argumentList.arguments.map { constantString(it) ?: return null }.joinToString("")
+        is FirFunctionCall -> {
+            if (e.calleeReference.toResolvedNamedFunctionSymbol()?.callableId != STRING_PLUS) return null
+            val left = constantString(e.dispatchReceiver) ?: return null
+            val right = constantString(e.argumentList.arguments.singleOrNull()) ?: return null
+            left + right
+        }
+        else -> null
+    }
+}
+
+private val STRING_PLUS = CallableId(StandardClassIds.String, Name.identifier("plus"))

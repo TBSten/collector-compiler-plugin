@@ -1,6 +1,7 @@
 package me.tbsten.collector.compiler.fir
 
 import me.tbsten.collector.compiler.CollectorNames
+import me.tbsten.collector.compiler.HintMessage
 import org.jetbrains.kotlin.name.CallableId
 import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.Name
@@ -10,6 +11,8 @@ internal class HintSpec(
     val callableId: CallableId,
     val fileName: String,
     val parameters: List<Pair<Name, ClassId>>,
+    /** The `key: value` lines of the hint's message (see [HintMessage]). */
+    val fields: List<Pair<String, String>> = emptyList(),
 )
 
 /**
@@ -22,21 +25,36 @@ internal class HintSpec(
  * - `collectorTag_<tag>(c: C)` for each own Collector C declared with a tag: calls by tag find the Collectors;
  * - `item_<X>(i: Item_…)` for each own item and each collected annotation X on it;
  * - `collectorMissed_<X>(a: X, m: Missed_…)` for each annotation X this module uses without seeing a Collector for it.
+ *
+ * A hint is in a file of its own, where a private X or C can not be named: its marker from [privateMarkers] stands
+ * for it in the parameters, which still tells the hints of two Collectors apart. What X and C are is in the message.
  */
-internal fun hintSpecs(collectors: List<CollectorDef>, items: OwnItems): Map<CallableId, List<HintSpec>> = buildList {
-    for (c in collectors) {
+internal fun hintSpecs(
+    collectors: List<CollectorDef>,
+    items: OwnItems,
+    privateMarkers: Map<ClassId, ClassId>,
+): Map<CallableId, List<HintSpec>> = buildList {
+    fun parameterType(id: ClassId): ClassId = privateMarkers[id] ?: id
+    // @CollectorFor<X> repeated with two tags is two definitions, and one pair of hints
+    val pairs = collectors.distinctBy { it.annotation to it.collector }
+    for (c in pairs) {
         add(
             HintSpec(
                 CollectorNames.collectorForHint(c.annotation), CollectorNames.collectorForHintFile(c.collector),
-                listOf(CollectorNames.ANNOTATION_PARAMETER to c.annotation, CollectorNames.COLLECTOR_PARAMETER to c.collector),
+                listOf(
+                    CollectorNames.ANNOTATION_PARAMETER to parameterType(c.annotation),
+                    CollectorNames.COLLECTOR_PARAMETER to parameterType(c.collector),
+                ),
+                listOf(HintMessage.ANNOTATION to c.annotation.asString(), HintMessage.COLLECTOR to c.collector.asString()),
             ),
         )
     }
-    for (c in collectors) {
+    for (c in pairs) {
         add(
             HintSpec(
                 CollectorNames.collectorKeyHint(c.collector), CollectorNames.collectorKeyHintFile(c.collector),
-                listOf(CollectorNames.ANNOTATION_PARAMETER to c.annotation),
+                listOf(CollectorNames.ANNOTATION_PARAMETER to parameterType(c.annotation)),
+                listOf(HintMessage.ANNOTATION to c.annotation.asString()),
             ),
         )
     }
@@ -45,7 +63,8 @@ internal fun hintSpecs(collectors: List<CollectorDef>, items: OwnItems): Map<Cal
         add(
             HintSpec(
                 CollectorNames.collectorTagHint(tag), CollectorNames.collectorForHintFile(c.collector),
-                listOf(CollectorNames.COLLECTOR_PARAMETER to c.collector),
+                listOf(CollectorNames.COLLECTOR_PARAMETER to parameterType(c.collector)),
+                listOf(HintMessage.COLLECTOR to c.collector.asString()),
             ),
         )
     }
@@ -59,11 +78,12 @@ internal fun hintSpecs(collectors: List<CollectorDef>, items: OwnItems): Map<Cal
             )
         }
     }
-    for ((x, first) in items.missed) {
+    for (x in items.missed.keys) {
+        val marker = items.missedMarker(x)
         add(
             HintSpec(
-                CollectorNames.missedHint(x), CollectorNames.missedHintFile(first),
-                listOf(CollectorNames.ANNOTATION_PARAMETER to x, CollectorNames.MARKER_PARAMETER to CollectorNames.missedMarker(first)),
+                CollectorNames.missedHint(x), CollectorNames.missedHintFile(marker),
+                listOf(CollectorNames.ANNOTATION_PARAMETER to x, CollectorNames.MARKER_PARAMETER to marker),
             ),
         )
     }

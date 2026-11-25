@@ -20,13 +20,18 @@ annotation class Local
 fun tags(tag: String) {
     collectAsList<String>("plugins") // E: COLLECT_TAG_TYPE_MISMATCH
     collectAsList<Plugin>(tag) // E: COLLECT_TAG_NOT_CONSTANT
+    collectAsList<Plugin>("plug" + tag) // E: COLLECT_TAG_NOT_CONSTANT
     collectSingle<Plugin>(PLUGINS) // E: COLLECT_SINGLE_COUNT
     collectSingleOrNull<Plugin>("plugins") // E: COLLECT_SINGLE_OR_NULL_COUNT
 }
 
+// the same key as an item of :defs, which wrote the array as a literal and is read here from its compiled form
+@defs.Keyed(names = arrayOf("a", "b")) val keyedHere = "here"
+
 fun annotations() {
     ScreenCollector.collectWithAnnotation<Local, Page>() // E: COLLECT_ANNOTATION_TYPE_MISMATCH
     ScreenCollector.collectAsMap<Screen, Page>() // E: COLLECT_AS_MAP_DUPLICATE_KEY
+    defs.KeyedCollector.collectAsMap<defs.Keyed, String>() // E: COLLECT_AS_MAP_DUPLICATE_KEY
     ScreenCollector.lazyCollectAsMap<Screen, Page>() // E: COLLECT_AS_MAP_DUPLICATE_KEY
 }
 

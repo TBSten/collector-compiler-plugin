@@ -10,7 +10,8 @@ FAILED=0
 # check <label> <source dir> <errorCases value> <expect compile success: true|false>
 check() {
     local label=$1 dir=$2 cases=$3 succeed=$4 log=build/error-check-$3.log
-    if ./gradlew :errors:compileKotlinJvm -Pcollector.errorCases="$cases" > "$log" 2>&1; then
+    # --rerun: an up-to-date task prints no diagnostics
+    if ./gradlew :errors:compileKotlinJvm --rerun -Pcollector.errorCases="$cases" > "$log" 2>&1; then
         [ "$succeed" == true ] || { echo "FAIL  $label: compiled without errors"; FAILED=1; return; }
     else
         [ "$succeed" == false ] || { echo "FAIL  $label: compilation failed"; grep -E "^e: " "$log" | head; FAILED=1; return; }
@@ -31,6 +32,6 @@ check() {
     fi
 }
 
-check "errors" errors/src/commonMain/kotlin true false
+check "errors" errors/src true false
 check "warnings" errors/warnings warnings true
 exit $FAILED

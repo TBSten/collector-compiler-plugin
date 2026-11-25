@@ -22,6 +22,7 @@ import org.jetbrains.kotlin.fir.declarations.utils.isInner
 import org.jetbrains.kotlin.fir.declarations.utils.isSuspend
 import org.jetbrains.kotlin.fir.declarations.utils.modality
 import org.jetbrains.kotlin.fir.declarations.utils.visibility
+import org.jetbrains.kotlin.fir.resolve.fullyExpandedType
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
 import org.jetbrains.kotlin.fir.types.coneTypeOrNull
 import org.jetbrains.kotlin.fir.types.constructClassLikeType
@@ -39,9 +40,16 @@ internal class FunctionSignature(
     val suspend: Boolean,
 )
 
+/**
+ * T read as a function type, or null when it is none. An alias of a function type is one
+ * (`typealias Handler = (String) -> String`). `KFunction1<…>` and the like are not: a value of those is a function
+ * reference, with a name and reflection, which the lambda a holder makes is not.
+ */
 internal fun functionSignature(session: FirSession, t: ConeKotlinType): FunctionSignature? {
-    val kind = t.functionTypeKind(session) ?: return null
-    val args = t.typeArguments.map { it.type ?: return null }
+    val type = t.fullyExpandedType(session)
+    val kind = type.functionTypeKind(session) ?: return null
+    if (kind.isReflectType) return null
+    val args = type.typeArguments.map { it.type ?: return null }
     if (args.isEmpty()) return null
     return FunctionSignature(
         parameters = args.dropLast(1),
@@ -73,11 +81,21 @@ internal fun conversionProblem(session: FirSession, declaration: FirDeclaration,
         is FirProperty -> {
             if (declaration.typeParameters.isNotEmpty()) return "generic properties can not be collected"
             if (declaration.receiverParameter != null) return "extension properties can not be collected"
+            // a holder reads the property from a function that is not @Composable
+            if (declaration.getter?.hasAnnotation(CollectorNames.COMPOSABLE, session) == true) {
+                return "properties with a @Composable getter can not be collected"
+            }
             val type = declaration.returnTypeRef.coneTypeOrNull ?: return "the type of ${declaration.name} is not resolved"
             if (type.isSubtypeOf(t)) null else "${declaration.name} is not a subtype of T"
         }
         is FirNamedFunction -> {
-            if (signature == null) return "a function can only be collected with a function type T"
+            if (signature == null) {
+                return if (t.fullyExpandedType(session).functionTypeKind(session)?.isReflectType == true) {
+                    "T is a KFunction type, which a function reference is but the collected value is not; use the function type instead"
+                } else {
+                    "a function can only be collected with a function type T"
+                }
+            }
             if (declaration.typeParameters.isNotEmpty()) return "generic functions can not be collected"
             if (declaration.contextParameters.isNotEmpty()) return "functions with context parameters can not be collected"
             val composable = declaration.hasAnnotation(CollectorNames.COMPOSABLE, session)
@@ -125,7 +143,8 @@ private class FirClassConversionFacts(
     // Constructors are read from the source declaration: this runs while holder members are generated.
     @OptIn(DirectDeclarationsAccess::class)
     private val constructors: List<FirConstructor> by lazy {
-        declaration.declarations.filterIsInstance<FirConstructor>().filter { it.visibility != Visibilities.Private }
+        declaration.declarations.filterIsInstance<FirConstructor>()
+            .filter { it.visibility == Visibilities.Public || it.visibility == Visibilities.Internal }
     }
 
     override val isObject: Boolean get() = declaration.classKind == ClassKind.OBJECT
@@ -142,7 +161,7 @@ private class FirClassConversionFacts(
             declaration.modality != Modality.ABSTRACT && declaration.modality != Modality.SEALED
 
     override val hasConstructorWithoutArguments: Boolean
-        get() = constructors.any { c -> c.valueParameters.all { it.defaultValue != null } }
+        get() = constructors.any { c -> c.valueParameters.all { it.defaultValue != null || it.isVararg } }
 
     override val constructorFitsT: Boolean
         get() = function != null && constructors.any { c ->

@@ -2,6 +2,7 @@ package me.tbsten.collector.compiler.fir
 
 import me.tbsten.collector.compiler.CollectorNames
 import me.tbsten.collector.compiler.CollectorPluginKey
+import me.tbsten.collector.compiler.HintMessage
 import me.tbsten.collector.compiler.debugLog
 import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.fir.FirSession
@@ -27,10 +28,13 @@ import org.jetbrains.kotlin.name.SpecialNames
 import org.jetbrains.kotlin.name.StandardClassIds
 
 /**
- * Declares the hints, the holder objects and the missed markers of this module in `collector.hints`. Only signatures are generated here;
- * the bodies are filled in IR.
+ * Declares the hints, the holder objects and the marker interfaces of this module in `collector.hints`. Only
+ * signatures are generated here; the bodies are filled in IR.
  *
  * What to generate comes from the session components [CollectorIndex] and [CollectorItemIndex].
+ *
+ * All of it is in files of its own, so no signature names a class that only one file can name (see [isFilePrivate]):
+ * a marker or a supertype stands for it, and what it stands for is in the message of the hint or of the holder.
  */
 @OptIn(ExperimentalTopLevelDeclarationsGenerationApi::class)
 class CollectorHintGenerator(session: FirSession) : FirDeclarationGenerationExtension(session) {
@@ -39,14 +43,24 @@ class CollectorHintGenerator(session: FirSession) : FirDeclarationGenerationExte
 
     override fun hasPackage(packageFqName: FqName): Boolean = packageFqName == CollectorNames.HINTS_PACKAGE
 
-    override fun getTopLevelClassIds(): Set<ClassId> = items.own.byHolder.keys + items.own.missedMarkers
+    override fun getTopLevelClassIds(): Set<ClassId> =
+        items.own.byHolder.keys + items.own.missedMarkers.keys + items.privateMarkers.values
 
     override fun getTopLevelCallableIds(): Set<CallableId> = items.hints.keys
 
+    /** Holders and markers are hidden from user code; their message says what they stand for. */
     override fun generateTopLevelClassLikeDeclaration(classId: ClassId): FirClassLikeSymbol<*>? {
-        if (classId in items.own.missedMarkers) return createTopLevelClass(classId, CollectorPluginKey, ClassKind.INTERFACE).symbol
-        if (classId !in items.own.byHolder) return null
-        return createTopLevelClass(classId, CollectorPluginKey, ClassKind.OBJECT).symbol
+        val (kind, fields) = items.own.missedMarkers[classId]?.let { ClassKind.INTERFACE to listOf(HintMessage.MISSED to it) }
+            ?: items.own.byHolder[classId]?.let { item ->
+                ClassKind.OBJECT to item.identity.toFields() +
+                    item.annotations.map { HintMessage.ANNOTATION to it.asString() } +
+                    visibleCollectors(item).map { HintMessage.COLLECTOR to it.collector.asString() }
+            }
+            ?: classId.takeIf { it in items.privateMarkers.values }?.let { ClassKind.INTERFACE to emptyList() }
+            ?: return null
+        val cls = createTopLevelClass(classId, CollectorPluginKey, kind)
+        cls.replaceAnnotations(listOf(hiddenMarker(HintMessage.of(fields))))
+        return cls.symbol
     }
 
     /** The item [cls] is the holder of, or null when [cls] is not a holder of this module. */
@@ -56,12 +70,16 @@ class CollectorHintGenerator(session: FirSession) : FirDeclarationGenerationExte
     private fun FirClassSymbol<*>.isCollectorGenerated(): Boolean =
         (origin as? FirDeclarationOrigin.Plugin)?.key == CollectorPluginKey
 
+    /** The Collectors of the annotations of [item] that this module can see, whether the item converts for them or not. */
+    private fun visibleCollectors(item: ItemDef): List<CollectorDef> =
+        item.annotations.flatMap { collectors.collectorsFor(it) }.distinctBy { it.collector }
+
     /** The visible Collectors this item can be converted for (spec 04); the others are left to the checker's warning. */
     private fun convertibleCollectors(item: ItemDef): List<CollectorDef> =
-        item.annotations.flatMap { collectors.collectorsFor(it) }.distinctBy { it.collector }.filter { c ->
+        visibleCollectors(item).filter { c ->
             val t = c.elementType ?: return@filter false
             val problem = conversionProblem(session, item.declaration, t)
-            if (problem != null) debugLog { "${item.fqName} is not converted for ${c.collector}: $problem" }
+            if (problem != null) debugLog { "${item.identity.fqName} is not converted for ${c.collector}: $problem" }
             problem == null
         }
 
@@ -85,6 +103,9 @@ class CollectorHintGenerator(session: FirSession) : FirDeclarationGenerationExte
     /**
      * The members of a holder: `annotations_<enc(X)>(): List<X>` for each collected annotation X on the item, and
      * `as_<enc(C)>(): T` for each Collector C the item converts for.
+     *
+     * When X is private, the list is declared as `List<Annotation>`, and `as_<enc(C)>()` as `Any?` when T is of a
+     * private class. IR reads X and C from the message of the holder, and call sites cast.
      */
     private fun generateHolderMembers(callableId: CallableId, owner: FirClassSymbol<*>): List<FirNamedFunctionSymbol> {
         val item = itemOf(owner) ?: return emptyList()
@@ -95,7 +116,8 @@ class CollectorHintGenerator(session: FirSession) : FirDeclarationGenerationExte
             .filter { CollectorNames.asFunction(it.collector) == callableId.callableName }
             .mapNotNull { c ->
                 val type = c.elementType ?: return@mapNotNull null
-                createMemberFunction(owner, CollectorPluginKey, callableId.callableName, type).symbol
+                val declared = if (type.namesFilePrivateClass(session)) session.builtinTypes.nullableAnyType.coneType else type
+                createMemberFunction(owner, CollectorPluginKey, callableId.callableName, declared).symbol
             }
     }
 
@@ -104,9 +126,12 @@ class CollectorHintGenerator(session: FirSession) : FirDeclarationGenerationExte
      * sites can compare their arguments (collectAsMap keys).
      */
     private fun annotationsFunction(owner: FirClassSymbol<*>, item: ItemDef, x: ClassId): FirNamedFunctionSymbol {
-        val type = StandardClassIds.List.constructClassLikeType(arrayOf(x.constructClassLikeType()))
+        // the function is named after X, and typed with the class X is in this module
+        val annotationClass = collectors.annotationClassOf(x)
+        val element = if (session.isFilePrivate(annotationClass)) StandardClassIds.Annotation else annotationClass
+        val type = StandardClassIds.List.constructClassLikeType(arrayOf(element.constructClassLikeType()))
         val function = createMemberFunction(owner, CollectorPluginKey, CollectorNames.annotationsFunction(x), type)
-        val copies = annotationsOfType(session, item.declaration.annotations.filter { it.annotatesDeclaration() }, x)
+        val copies = annotationsOfType(session, item.declaration.annotations.filter { it.annotatesDeclaration() }, annotationClass)
             .map { buildAnnotationCopy(it) { useSiteTarget = null } }
         function.replaceAnnotations(copies)
         return function.symbol
@@ -119,7 +144,7 @@ class CollectorHintGenerator(session: FirSession) : FirDeclarationGenerationExte
             val function = createTopLevelFunction(CollectorPluginKey, callableId, unit, containingFileName = hint.fileName) {
                 hint.parameters.forEach { (name, type) -> valueParameter(name, type.constructClassLikeType()) }
             }
-            function.replaceAnnotations(function.annotations + hintFormatMarker())
+            function.replaceAnnotations(function.annotations + hiddenMarker(HintMessage.of(hint.fields)))
             function.symbol
         }
     }

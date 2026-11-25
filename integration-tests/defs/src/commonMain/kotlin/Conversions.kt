@@ -15,11 +15,23 @@ object ShapeCollector : Collector<Shape>
 @CollectorFor<Conv>()
 object ShapeFactoryCollector : Collector<(String) -> Shape>
 
+/** T written through an alias of a function type is that function type. */
+typealias ShapeMaker = (String) -> Shape
+
+@CollectorFor<Conv>()
+object ShapeMakerCollector : Collector<ShapeMaker>
+
 @CollectorFor<Conv>()
 object ShapeClassCollector : Collector<KClass<out Shape>>
 
 @CollectorFor<Conv>()
 object ShapeProviderCollector : Collector<() -> Shape>
+
+/** T = Any takes an instance and a class reference alike, so the order of the conversion rules shows. */
+annotation class Loose
+
+@CollectorFor<Loose>()
+object LooseCollector : Collector<Any>
 
 annotation class Route
 

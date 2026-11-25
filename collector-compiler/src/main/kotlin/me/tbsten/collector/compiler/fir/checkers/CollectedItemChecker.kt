@@ -3,10 +3,15 @@ package me.tbsten.collector.compiler.fir.checkers
 import me.tbsten.collector.compiler.CollectorNames
 import me.tbsten.collector.compiler.fir.CollectorErrors
 import me.tbsten.collector.compiler.fir.collectorIndex
+import me.tbsten.collector.compiler.fir.collectorItemIndex
 import me.tbsten.collector.compiler.fir.conversionProblem
 import me.tbsten.collector.compiler.fir.describeHint
+import me.tbsten.collector.compiler.fir.ItemDef
 import me.tbsten.collector.compiler.fir.expandedAnnotationIds
+import me.tbsten.collector.compiler.fir.isJavaSourceClass
+import me.tbsten.collector.compiler.fir.itemKind
 import me.tbsten.collector.compiler.fir.itemName
+import me.tbsten.collector.compiler.fir.withMetaAnnotations
 import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
 import org.jetbrains.kotlin.diagnostics.reportOn
@@ -24,11 +29,11 @@ import org.jetbrains.kotlin.fir.declarations.FirTypeAlias
 import org.jetbrains.kotlin.fir.declarations.FirValueParameter
 import org.jetbrains.kotlin.fir.declarations.utils.isInner
 import org.jetbrains.kotlin.fir.declarations.utils.isLocal
-import org.jetbrains.kotlin.fir.resolve.providers.firProvider
 import org.jetbrains.kotlin.fir.symbols.SymbolInternals
+import org.jetbrains.kotlin.fir.symbols.impl.FirCallableSymbol
+import org.jetbrains.kotlin.fir.symbols.impl.FirClassLikeSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirFileSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
-import org.jetbrains.kotlin.name.ClassId
 
 /**
  * Checks declarations annotated with an annotation some visible Collector collects: where they are declared, that
@@ -44,19 +49,49 @@ internal object CollectedItemChecker : FirBasicDeclarationChecker(MppCheckerKind
         val allAnnotations = expandedAnnotationIds(session, declaration)
         val source = declaration.source ?: return
         // a Collector for one of these annotations was built by another plugin version, so it is not read
-        val hintNames = allAnnotations.mapTo(mutableSetOf()) { CollectorNames.collectorForHintName(it.asFqNameString()) }
+        val hintNames = allAnnotations.mapTo(mutableSetOf()) { CollectorNames.collectorForHintName(it) }
         val stale = index.incompatibleCollectorHints.filter { it.name in hintNames }
         if (stale.isNotEmpty()) {
             reporter.reportOn(source, CollectorErrors.HINT_FORMAT_MISMATCH, stale.joinToString { it.describeHint() })
         }
-        val annotations = allAnnotations.filterTo(mutableSetOf()) { it in index.targetAnnotations }
-        if (annotations.isEmpty()) return
+        // the X's of the visible Collectors this declaration is annotated with
+        val annotations = allAnnotations.flatMapTo(mutableSetOf()) { index.targetsOf(it) }
+        val scanned = session.collectorItemIndex.own.scannedAnnotations(declaration.symbol)
+        if (annotations.isEmpty() && scanned.isEmpty()) return
 
-        placementProblem(declaration)?.let {
-            reporter.reportOn(source, CollectorErrors.ITEM_NOT_ALLOWED_HERE, it)
+        if (annotations.isNotEmpty()) {
+            placementProblem(declaration)?.let {
+                reporter.reportOn(source, CollectorErrors.ITEM_NOT_ALLOWED_HERE, it)
+                return
+            }
+        }
+        // The items were found before the compiler resolved annotations (see AnnotationResolver). Where the two
+        // disagree the hints are wrong, so the declaration must not compile.
+        if (scanned != annotations) {
+            // the one case known in advance: a meta-annotation whose annotations could not be read that early
+            val missed = annotations - scanned
+            val unread = allAnnotations.filter { carrier ->
+                session.isJavaSourceClass(carrier) &&
+                    withMetaAnnotations(session, listOf(carrier)).any { it != carrier && index.targetsOf(it).any(missed::contains) }
+            }
+            if (unread.isNotEmpty()) {
+                reporter.reportOn(source, CollectorErrors.META_ANNOTATION_IN_JAVA_SOURCE, unread.joinToString { "@${it.shortClassName}" })
+                return
+            }
+            val misread = missed + (scanned - annotations)
+            reporter.reportOn(source, CollectorErrors.ANNOTATION_MISREAD, misread.joinToString { it.asFqNameString() })
             return
         }
-        nameClash(declaration, index.targetAnnotations)?.let {
+        // An actual declaration belongs to the item of its expect declaration (spec 06+), which is the one checked.
+        // Its holder was declared with the common source set, so what only the actual is annotated with is lost.
+        expectItemOf(declaration)?.let { expect ->
+            val onlyHere = annotations - expect.annotations
+            if (onlyHere.isNotEmpty()) {
+                reporter.reportOn(source, CollectorErrors.ITEM_ANNOTATION_ONLY_ON_ACTUAL, onlyHere.joinToString { "@${it.shortClassName}" })
+            }
+            return
+        }
+        nameClash(declaration)?.let {
             reporter.reportOn(source, CollectorErrors.ITEM_NAME_CLASH, it)
         }
 
@@ -69,6 +104,19 @@ internal object CollectedItemChecker : FirBasicDeclarationChecker(MppCheckerKind
             val detail = problems.joinToString("; ") { (c, problem) -> "${c.collector.shortClassName}: $problem" }
             reporter.reportOn(source, CollectorErrors.ITEM_NOT_CONVERTIBLE, detail)
         }
+    }
+
+    /** The item of the expect declaration [declaration] is the actual of, or null. */
+    context(context: CheckerContext)
+    private fun expectItemOf(declaration: FirDeclaration): ItemDef? {
+        if (!declaration.isActual) return null
+        val kind = declaration.itemKind() ?: return null
+        val fqName = when (val symbol = declaration.symbol) {
+            is FirClassLikeSymbol<*> -> symbol.classId.asSingleFqName()
+            is FirCallableSymbol<*> -> symbol.callableId?.asSingleFqName()
+            else -> null
+        } ?: return null
+        return context.session.collectorItemIndex.expectItem(kind, fqName.asString())
     }
 
     /** Why [declaration] can not be an item where it is declared, or null when it can. */
@@ -96,20 +144,25 @@ internal object CollectedItemChecker : FirBasicDeclarationChecker(MppCheckerKind
     }
 
     /**
-     * The name of [declaration] when another collected declaration has the same FQN: an overload, or a declaration
-     * with the same name in another file of the package (private ones included, since their holders would clash). An
-     * expect declaration and its actual are one item (spec 06+).
+     * The name of [declaration] when the same file or the same object has another collected declaration of that name:
+     * an overload, or a function and a property. Their holders would be one.
+     *
+     * Declarations of the same name in two files of a package are two items (`private fun Preview()` in every file).
+     * A top-level class clashes with nothing: its package can not have another one, and functions and properties
+     * are told apart from it by their file.
      */
     @OptIn(DirectDeclarationsAccess::class, SymbolInternals::class)
     context(context: CheckerContext)
-    private fun nameClash(declaration: FirDeclaration, targets: Set<ClassId>): String? {
+    private fun nameClash(declaration: FirDeclaration): String? {
         val name = declaration.itemName() ?: return null
         val siblings = when (val owner = context.containingDeclarations.lastOrNull()) {
             is FirRegularClassSymbol -> owner.fir.declarations
-            is FirFileSymbol -> context.session.firProvider.getFirFilesByPackage(owner.fir.packageDirective.packageFqName).flatMap { it.declarations }
+            is FirFileSymbol -> if (declaration is FirRegularClass) return null else owner.fir.declarations.filter { it !is FirRegularClass }
             else -> return null
         }.filter { it.itemName() == name }
-        fun FirDeclaration.collected() = expandedAnnotationIds(context.session, this).any { it in targets }
+        val index = context.session.collectorIndex
+        fun FirDeclaration.collected() = expandedAnnotationIds(context.session, this).any { index.targetsOf(it).isNotEmpty() }
+        // an expect declaration and its actual are one item (spec 06+)
         val expectCollected = siblings.any { it.isExpect && it.collected() }
         val clashes = siblings.count { !it.isExpect && (it.collected() || (expectCollected && it.isActual)) } +
             if (expectCollected && siblings.none { it.isActual }) 1 else 0

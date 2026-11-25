@@ -4,7 +4,8 @@ package me.tbsten.collector.compiler
  * How a class or an object becomes a value of the T of `Collector<T>` (spec section 04), or why it does not.
  *
  * FIR decides with [selectClassConversion] whether `as_<C>()` exists, and IR builds its body from the rule the same
- * function selects, so the two sides share the order in which the rules are tried.
+ * function selects. Both sides answer the [ClassConversionFacts] from the declaration itself, so they can not pick
+ * different rules for a T that several rules fit (such as `Any`).
  */
 internal sealed interface ClassConversion {
     enum class Rule : ClassConversion {
@@ -32,7 +33,12 @@ internal sealed interface ClassConversion {
     }
 }
 
-/** What [selectClassConversion] asks about a class and T. Each answer is only computed when the rule order needs it. */
+/**
+ * What [selectClassConversion] asks about a class and T. Each answer is only computed when the rule order needs it.
+ *
+ * A "callable" constructor is public or internal: the holder calls it from another class of the same module, so
+ * private and protected constructors are out of reach.
+ */
 internal interface ClassConversionFacts {
     val isObject: Boolean
 
@@ -62,10 +68,12 @@ internal fun selectClassConversion(facts: ClassConversionFacts): ClassConversion
         facts.providerFitsT -> ClassConversion.Rule.OBJECT_PROVIDER
         else -> ClassConversion.Rejection.OBJECT_DOES_NOT_FIT
     }
+    // Like an object, a class is a value of T first; its class reference is for a T that asks for one, and what is
+    // left for a T such as Any when no instance can be made.
+    facts.canBeInstantiated && facts.isSubtypeOfT && facts.hasConstructorWithoutArguments -> ClassConversion.Rule.NEW_INSTANCE
     facts.classReferenceFitsT -> ClassConversion.Rule.CLASS_REFERENCE
     !facts.canBeInstantiated -> ClassConversion.Rejection.NOT_INSTANTIABLE
-    facts.isSubtypeOfT ->
-        if (facts.hasConstructorWithoutArguments) ClassConversion.Rule.NEW_INSTANCE else ClassConversion.Rejection.NO_CONSTRUCTOR_WITHOUT_ARGUMENTS
+    facts.isSubtypeOfT -> ClassConversion.Rejection.NO_CONSTRUCTOR_WITHOUT_ARGUMENTS
     facts.constructorFitsT -> ClassConversion.Rule.CONSTRUCTOR_REFERENCE
     else -> ClassConversion.Rejection.CLASS_DOES_NOT_FIT
 }

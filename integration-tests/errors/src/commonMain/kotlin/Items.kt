@@ -10,6 +10,10 @@ class Holder {
     @Conv val member: Shape = any // E: ITEM_NOT_ALLOWED_HERE
     @Conv fun memberFunction(name: String): Shape = any // E: ITEM_NOT_ALLOWED_HERE
     @Conv inner class Inner : Shape by any // E: ITEM_NOT_ALLOWED_HERE
+
+    // reported on the name of the declaration, not on the annotations before it
+    @Conv
+    val onTheNextLine: Shape = any // E: ITEM_NOT_ALLOWED_HERE
 }
 
 fun localDeclarations() {
@@ -20,9 +24,33 @@ fun localDeclarations() {
 
 fun parameter(@Conv shape: Shape) = shape // E: ITEM_NOT_ALLOWED_HERE
 
+// One file or one object can not have two collected declarations of a name. Two files of a package can (see
+// edge.perfile in :items1).
 @Conv fun overloaded(): Shape = any // E: ITEM_NAME_CLASH
 @Conv fun overloaded(name: String): Shape = any // E: ITEM_NAME_CLASH
+
+@Conv fun functionAndProperty(): Shape = any // E: ITEM_NAME_CLASH
+@Conv val functionAndProperty: Shape = any // E: ITEM_NAME_CLASH
+
+// a top-level class and a function of its name (a factory function) are two items; in an object they are one name
+@Conv class Factory : Shape by any
+@Conv fun Factory(name: String): Shape = any
+
+object ClashHolder {
+    @Conv class Factory : Shape by any // E: ITEM_NAME_CLASH
+    @Conv fun Factory(name: String): Shape = any // E: ITEM_NAME_CLASH
+}
 
 @CollectorFor<Conv>() class NotAnObject : Collector<Shape> // E: COLLECTOR_FOR_NOT_OBJECT
 
 @CollectorFor<Conv>() object NotACollectorObject // E: COLLECTOR_FOR_NOT_COLLECTOR
+
+// X of @CollectorFor<X> must be an annotation class, without type parameters (their arguments are not told apart)
+annotation class Generic<T>
+@CollectorFor<Generic<String>>() object GenericCollector : Collector<String> // E: COLLECTOR_FOR_GENERIC_ANNOTATION
+@CollectorFor<Nothing>() object NothingCollector : Collector<String> // E: COLLECTOR_FOR_NOT_ANNOTATION_CLASS
+@CollectorFor<Annotation>() object AnyAnnotationCollector : Collector<String> // E: COLLECTOR_FOR_NOT_ANNOTATION_CLASS
+
+// A type that does not resolve is the compiler's error alone: the plugin adds nothing, on the Collector or on an item.
+@CollectorFor<Missing>() object MissingCollector : Collector<String> // E: UNRESOLVED_REFERENCE
+@Missing val annotatedWithMissing = "" // E: UNRESOLVED_REFERENCE

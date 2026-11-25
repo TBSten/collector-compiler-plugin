@@ -32,3 +32,9 @@ fun ThemedPreview() { Label("themed") }
 @AllPreviews
 @Composable
 private fun EverywherePreview() { Label("everywhere") }
+
+// Not collected (a warning): the value of a property with a @Composable getter can only be read while composing,
+// which a Collector does not do.
+@Preview(name = "getter")
+val getterPreview: @Composable () -> Unit
+    @Composable get() = { Label("getter") }

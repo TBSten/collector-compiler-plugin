@@ -11,7 +11,7 @@ import org.jetbrains.kotlin.fir.analysis.extensions.FirAdditionalCheckersExtensi
 
 class CollectorCheckers(session: FirSession) : FirAdditionalCheckersExtension(session) {
     override val declarationCheckers: DeclarationCheckers = object : DeclarationCheckers() {
-        override val regularClassCheckers: Set<FirRegularClassChecker> = setOf(CollectorForChecker)
+        override val regularClassCheckers: Set<FirRegularClassChecker> = setOf(CollectorForChecker, MetaAnnotationChecker)
         override val basicDeclarationCheckers: Set<FirBasicDeclarationChecker> = setOf(CollectedItemChecker)
     }
 
