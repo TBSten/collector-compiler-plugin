@@ -18,7 +18,6 @@ import defs.Weighted
 import defs.WeightedCollector
 import edge.Color
 import edge.Size
-import edge.misplaced.SpotCollector
 import me.tbsten.collector.collectAsList
 import me.tbsten.collector.collectWithAnnotation
 import kotlin.test.Test
@@ -81,12 +80,6 @@ class EdgeInputTest {
     @Test
     fun packageAndOuterClassWithTheSameName() {
         assertEquals(listOf("package edge.twice", "object edge.twice"), TwiceCollector.collectAsList().map { it.toString() })
-    }
-
-    /** A member of a class, an inner class, a local declaration and a parameter are left out (with a warning). */
-    @Test
-    fun annotationsWhereNothingCanBeCollectedAreLeftOut() {
-        assertEquals(listOf("in a companion", "in an object", "top level"), SpotCollector.collectAsList())
     }
 
     /** Files of one package may each have a declaration of the same name: one item per file, in the order of the files. */

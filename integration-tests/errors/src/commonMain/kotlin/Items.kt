@@ -6,6 +6,24 @@ import me.tbsten.collector.CollectorFor
 
 private val any = object : Shape { override val id = "any" }
 
+class Holder {
+    @Conv val member: Shape = any // E: ITEM_NOT_ALLOWED_HERE
+    @Conv fun memberFunction(name: String): Shape = any // E: ITEM_NOT_ALLOWED_HERE
+    @Conv inner class Inner : Shape by any // E: ITEM_NOT_ALLOWED_HERE
+
+    // reported on the name of the declaration, not on the annotations before it
+    @Conv
+    val onTheNextLine: Shape = any // E: ITEM_NOT_ALLOWED_HERE
+}
+
+fun localDeclarations() {
+    @Conv val local: Shape = any // E: ITEM_NOT_ALLOWED_HERE
+    @Conv class LocalClass : Shape by any // E: ITEM_NOT_ALLOWED_HERE
+    println(local)
+}
+
+fun parameter(@Conv shape: Shape) = shape // E: ITEM_NOT_ALLOWED_HERE
+
 // One file or one object can not have two collected declarations of a name. Two files of a package can (see
 // edge.perfile in :items1).
 @Conv fun overloaded(): Shape = any // E: ITEM_NAME_CLASH

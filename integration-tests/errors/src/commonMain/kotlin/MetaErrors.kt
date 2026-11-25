@@ -9,6 +9,10 @@ import me.tbsten.collector.CollectorFor
 
 private val shape = object : Shape { override val id = "meta" }
 
+class MetaHolder {
+    @ConvMeta val member: Shape = shape // E: ITEM_NOT_ALLOWED_HERE
+}
+
 @ConvMeta fun metaOverload(): Shape = shape // E: ITEM_NAME_CLASH
 @Conv fun metaOverload(name: String): Shape = shape // E: ITEM_NAME_CLASH
 
